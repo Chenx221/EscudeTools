@@ -231,7 +231,8 @@ namespace EscudeLSF
             {
                 foreach (var eye2Entry in entrys.Where(e => e.type == 0x14))
                 {
-                    ProcessOverlayImage(eye2Entry, target2Path, workDirectory, tmpImage);
+                    using var tmpImageClone = (MagickImage)tmpImage.Clone();
+                    ProcessOverlayImage(eye2Entry, target2Path, workDirectory, tmpImageClone);
                 }
             }
             else
