@@ -1,7 +1,7 @@
 ﻿using ImageMagick;
 using System.Runtime.InteropServices;
 
-namespace EscudeLSF
+namespace EscudeTools
 {
     internal class Program
     {
@@ -12,7 +12,6 @@ namespace EscudeLSF
                 Console.WriteLine("Invalid arguments. Use -h for help.");
                 return;
             }
-
 
             switch (args[0])
             {
@@ -26,7 +25,7 @@ namespace EscudeLSF
         }
         //static void DisplayHelp()
         //{
-        //    Console.WriteLine("Usage: EscudeLSF.exe [-r <filepath>] [-d <directory>] [-s <filepath>] [-h]");
+        //    Console.WriteLine("Usage: EscudeTools.exe [-r <filepath>] [-d <directory>] [-s <filepath>] [-h]");
         //    Console.WriteLine("Options:");
         //    Console.WriteLine("  <filepath>     Single lsf process");
         //    Console.WriteLine("  -r <filepath>  Read single lsf file");
