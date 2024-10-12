@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "EscudeTools": {
+      "commandName": "Project",
+      "commandLineArgs": "G:\\x221.local\\resource\\data\\db_graphics.bin"
+    }
+  }
+}
