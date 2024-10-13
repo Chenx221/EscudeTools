@@ -10,16 +10,24 @@
                 DatabaseManager dm = new();
                 foreach (string file in files)
                 {
-                    if (!dm.LoadDatabase(file))
+                    if (dm.LoadDatabase(file))
                     {
-                        Console.WriteLine($"Failed to load {file}");
+                        Console.WriteLine($"Load {file} Success");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Load {file} Failed");
                         return;
                     }
 
-                    //if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
-                    //    Console.WriteLine("Export Database Success");
-                    //else
-                    //    Console.WriteLine("Export Database Failed");
+                    if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
+                        Console.WriteLine("Export Database Success");
+                    else
+                    {
+                        Console.WriteLine("Export Database Failed");
+                        return;
+                    }
+                        
                 }
 
             }
