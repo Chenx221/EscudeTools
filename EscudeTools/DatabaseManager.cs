@@ -198,72 +198,68 @@ namespace EscudeTools
         private static bool SqliteProcess(Sheet[] db, string path)
         {
             //db含有多个sheet，每个sheet中col存放标题（对应数据库中应该是字段），records存放数据（对应数据库中应该是记录）
-            using (SqliteConnection connection = new($"Data Source={path};"))
+            using SqliteConnection connection = new($"Data Source={path};");
+            connection.Open();
+
+            foreach (var sheet in db)
             {
-                connection.Open();
-
-                foreach (var sheet in db)
+                using (SqliteCommand createTableCommand = connection.CreateCommand())
                 {
-                    using (SqliteCommand createTableCommand = connection.CreateCommand())
-                    {
-                        StringBuilder createTableQuery = new();
-                        createTableQuery.Append($"CREATE TABLE IF NOT EXISTS {sheet.name} (");
+                    StringBuilder createTableQuery = new();
+                    createTableQuery.Append($"CREATE TABLE IF NOT EXISTS {sheet.name} (");
 
-                        // Add columns to the create table query
-                        foreach (var column in sheet.col)
-                        {
-                            createTableQuery.Append($"{column.name} {GetSQLiteColumnType(column.type)}, ");
-                        }
-
-                        createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
-                        createTableQuery.Append(");");
-
-                        createTableCommand.CommandText = createTableQuery.ToString();
-                        createTableCommand.ExecuteNonQuery();
-                    }
-
-                    using SqliteCommand insertDataCommand = connection.CreateCommand();
-                    StringBuilder insertDataQuery = new();
-                    insertDataQuery.Append($"INSERT INTO {sheet.name} (");
-
-                    // Add column names to the insert data query
+                    // Add columns to the create table query
                     foreach (var column in sheet.col)
                     {
-                        insertDataQuery.Append($"{column.name}, ");
+                        createTableQuery.Append($"{column.name} {GetSQLiteColumnType(column.type)}, ");
                     }
 
-                    insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
-                    insertDataQuery.Append(") VALUES (");
+                    createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
+                    createTableQuery.Append(");");
 
-                    // Add parameter placeholders to the insert data query
-                    for (int i = 0; i < sheet.cols; i++)
+                    createTableCommand.CommandText = createTableQuery.ToString();
+                    createTableCommand.ExecuteNonQuery();
+                }
+
+                using SqliteCommand insertDataCommand = connection.CreateCommand();
+                StringBuilder insertDataQuery = new();
+                insertDataQuery.Append($"INSERT INTO {sheet.name} (");
+
+                // Add column names to the insert data query
+                foreach (var column in sheet.col)
+                {
+                    insertDataQuery.Append($"{column.name}, ");
+                }
+
+                insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
+                insertDataQuery.Append(") VALUES (");
+
+                // Add parameter placeholders to the insert data query
+                for (int i = 0; i < sheet.cols; i++)
+                {
+                    insertDataQuery.Append($"@param{i}, ");
+                }
+
+                insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
+                insertDataQuery.Append(");");
+
+                insertDataCommand.CommandText = insertDataQuery.ToString();
+
+                // Add data parameters to the insert data command
+                for (int i = 0; i < sheet.records.values.Length; i++)
+                {
+                    var record = (Record)sheet.records.values[i];
+                    for (int j = 0; j < sheet.cols; j++)
                     {
-                        insertDataQuery.Append($"@param{i}, ");
+                        var parameter = new SqliteParameter($"@param{j}", record.values[j]);
+                        insertDataCommand.Parameters.Add(parameter);
                     }
 
-                    insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
-                    insertDataQuery.Append(");");
-
-                    insertDataCommand.CommandText = insertDataQuery.ToString();
-
-                    // Add data parameters to the insert data command
-                    for (int i = 0; i < sheet.records.values.Length; i++)
-                    {
-                        var record = (Record)sheet.records.values[i];
-                        for (int j = 0; j < sheet.cols; j++)
-                        {
-                            var parameter = new SqliteParameter($"@param{j}", record.values[j]);
-                            insertDataCommand.Parameters.Add(parameter);
-                        }
-
-                        insertDataCommand.ExecuteNonQuery();
-                        insertDataCommand.Parameters.Clear();
-                    }
+                    insertDataCommand.ExecuteNonQuery();
+                    insertDataCommand.Parameters.Clear();
                 }
             }
             return true;
-
-            //throw new NotImplementedException();
         }
         private static string GetSQLiteColumnType(ushort type)
         {
