@@ -1,5 +1,5 @@
 # EscudeLSF
 
-此工具尚未完工，目前还是一个半成品
+此工具尚未完工，目前仍是半成品
 
-因为精力有限，项目目前暂停维护，等有空了我再来研究研究
+[v2分支](https://git.chenx221.cyou/chenx221/EscudeTools/src/branch/v2)还在写，精力有限，完成时间待定
