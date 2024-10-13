@@ -1,13 +1,30 @@
-﻿using ImageMagick;
-using System.Runtime.InteropServices;
-
-namespace EscudeTools
+﻿namespace EscudeTools
 {
     internal class Program
     {
         static void Main(string[] args)
         {
-            DatabaseManager.LoadDatabase(args[0]);
+            if (Directory.Exists(args[0]))
+            {
+                string[] files = Directory.GetFiles(args[0], "db_*.bin");
+                DatabaseManager dm = new();
+                foreach (string file in files)
+                {
+                    if (!dm.LoadDatabase(file))
+                    {
+                        Console.WriteLine($"Failed to load {file}");
+                        return;
+                    }
+
+                    //if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
+                    //    Console.WriteLine("Export Database Success");
+                    //else
+                    //    Console.WriteLine("Export Database Failed");
+                }
+
+            }
+
+
             //    if (args.Length == 0 || args.Length > 2)
             //    {
             //        Console.WriteLine("Invalid arguments. Use -h for help.");

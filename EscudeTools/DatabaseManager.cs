@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 
 namespace EscudeTools
 {
@@ -19,15 +20,23 @@ namespace EscudeTools
     {
         public object[] values = new object[columnCount];  // 每列的数据值
     }
-    internal class DatabaseManager
+    public class DatabaseManager
     {
         static readonly byte[] fileSignature = [0x6D, 0x64, 0x62, 0x00];
         static readonly byte[] stopBytes = [0x00, 0x00, 0x00, 0x00];
 
-        public static bool LoadDatabase(string path)
+        private Sheet[] db = [];
+        private string dbName = string.Empty;
+
+        public Sheet[] GetDB() { return db; }
+
+        public bool LoadDatabase(string path)
         {
+            if (db.Length > 0)
+                db = [];
             if (!File.Exists(path))
                 return false;
+            dbName = Path.GetFileNameWithoutExtension(path);
             List<Sheet> sheets = [];
             using (FileStream fs = new(path, FileMode.Open))
             using (BinaryReader br = new(fs))
@@ -48,18 +57,18 @@ namespace EscudeTools
                     nextBytes = br.ReadBytes(4);
                     uint sheet_text_size = BitConverter.ToUInt32(nextBytes, 0);
                     byte[] sheet_text = br.ReadBytes((int)sheet_text_size);
-                    Sheet sheet = ProcessSheet(sheet_struct, sheet_data, sheet_text);
+                    Sheet sheet = ProcessSheet(sheet_struct, sheet_data, sheet_text, sheets.Count);
                     sheets.Add(sheet);
                     nextBytes = br.ReadBytes(4);
                     if (nextBytes.Length < 4)
                         return false;
                 }
             }
-            Sheet[] sheetArray = [.. sheets];
-            throw new NotImplementedException();
+            db = [.. sheets];
+            return true;
         }
 
-        private static Sheet ProcessSheet(byte[] sheet_struct, byte[] sheet_data, byte[] sheet_text)
+        private static Sheet ProcessSheet(byte[] sheet_struct, byte[] sheet_data, byte[] sheet_text, int debugInfo1 = 0)
         {
             Sheet sheet = new();
             //process struct
@@ -75,7 +84,7 @@ namespace EscudeTools
                     type = BitConverter.ToUInt16(sheet_struct, offset)
                 };
                 if (column.type == 0x3 || column.type == 0x2)
-                    throw new NotImplementedException(); //暂时不受支持的0x2 0x3
+                    throw new NotSupportedException("Unsupported Format"); //暂时不受支持的0x2 0x3
                 column.size = BitConverter.ToUInt16(sheet_struct, offset + 2);
                 uint columnNameOffset = BitConverter.ToUInt32(sheet_struct, offset + 4);
                 column.name = ReadStringFromTextData(sheet_text, (int)columnNameOffset);
@@ -89,12 +98,21 @@ namespace EscudeTools
             for (int i = 0; i < recordNum; i++)
             {
                 Record record = new((int)sheet.cols);
-                for (int j = 0; j < sheet.cols; j++) //色值处理好像有点问题？
+                for (int j = 0; j < sheet.cols; j++) //对应cols //色值处理好像有点问题？
                 {
                     if (sheet.col[j].type == 4)
                     {
                         uint textOffset = BitConverter.ToUInt32(sheet_data, offset);
-                        record.values[j] = ReadStringFromTextData(sheet_text, (int)textOffset);
+                        if (sheet_text.Length < textOffset)
+                        {
+                            record.values[j] = textOffset.ToString("X"); //let you go, i will fix you later
+                            Console.WriteLine($"Invalid text offset: {textOffset:X}, sheet: {debugInfo1}, recordNum: {i}, type: {j}"); //Not Supported, May be a script specific value
+                        }
+                        else
+                        {
+                            record.values[j] = ReadStringFromTextData(sheet_text, (int)textOffset);
+                        }
+
                     }
                     else
                     {
@@ -122,9 +140,35 @@ namespace EscudeTools
                 : shiftJis.GetString(stringBytes.ToArray());
         }
 
-        //public static bool OutputDatabase(DatabaseEntry db, int outputType)
-        //{
-        //    throw new NotImplementedException();
-        //}
+        public bool ExportDatabase(int outputType, string? storePath)
+        {
+            if (db.Length == 0)
+                return false;
+            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
+            switch (outputType)
+            {
+                case 0: //sqlite
+                    return SqliteProcess(db, Path.Combine(storePath, dbName + ".sqlite"));
+                case 1: //csv
+                    foreach (var s in db)
+                    {
+                        bool status = CsvProcess(s, Path.Combine(storePath, dbName + "_" + s.name + ".csv"));
+                        if (!status)
+                            throw new IOException($"Failed to export sheet: {s.name}");
+                    }
+                    return true;
+                default:
+                    throw new NotSupportedException("Unsupported output type.");
+            }
+        }
+
+        private bool SqliteProcess(Sheet[] db, string path)
+        {
+            throw new NotImplementedException();
+        }
+        private bool CsvProcess(Sheet s, string path)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
