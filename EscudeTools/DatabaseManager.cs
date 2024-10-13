@@ -118,7 +118,7 @@ namespace EscudeTools
                     {
                         record.values[j] = BitConverter.ToInt32(sheet_data, offset);
                     }
-                    offset += 4; //可能有问题
+                    offset += sheet.col[j].size; //较小概率还有问题
                 }
                 recordFather.values[i] = record;
             }
