@@ -2,7 +2,7 @@
   "profiles": {
     "EscudeTools": {
       "commandName": "Project",
-      "commandLineArgs": "G:\\x221.local\\lab\\db"
+      "commandLineArgs": "G:\\x221.local\\lab\\a_prologue_01.bin \r\nG:\\x221.local\\lab\\a_prologue_01.001"
     }
   }
 }

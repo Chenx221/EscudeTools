@@ -7,10 +7,11 @@ namespace EscudeTools
 {
     public class ScriptMessage
     {
-        public byte[] Data { get; set; }        // MESS領域 (消息区域)
+        public byte[] Data { get; set; }        // MESS領域 (消息区域) //这个还不知道怎么解析成人能看懂的
         public uint Size { get; set; }          // MESS領域サイズ (消息区域大小)
         public List<uint> Offset { get; set; }      // MESSオフセット (消息偏移)
         public uint Count { get; set; }         // MESS数 (消息数量)
+        public string[] DataString { get; set; } // 给人看的Data内容
     }
 
     public class ScriptFile
@@ -24,6 +25,7 @@ namespace EscudeTools
         public uint TextCount { get; set; }     // TEXT数 (文本数量)
 
         public uint MessCount { get; set; }     // MESS数 (消息数量)
+        public string[] TextString { get; set; } // 给人看的Text内容
     }
 
     public class ScriptManager
@@ -72,6 +74,11 @@ namespace EscudeTools
                 sf.TextOffset[i] = br.ReadUInt32();
             }
             sf.Text = br.ReadBytes((int)sf.TextSize);
+            sf.TextString = new string[sf.TextCount];
+            for (int i = 0; i < sf.TextCount; i++)
+            {
+                sf.TextString[i] = ReadStringFromTextData(sf.Text, (int)sf.TextOffset[i]);
+            }
             return true;
         }
 
@@ -103,7 +110,7 @@ namespace EscudeTools
                     sm.Offset.Add(br.ReadUInt32());
                 }
                 byte[] encryptData = br.ReadBytes((int)sm.Size);
-                for (int i = 0; i <= encryptData.Length; i++)
+                for (int i = 0; i < encryptData.Length; i++)
                 {
                     encryptData[i] ^= 0x55;
                 }
@@ -146,6 +153,11 @@ namespace EscudeTools
                         }
                     }
                 }
+            }
+            sm.DataString = new string[sm.Count];
+            for (int i = 0; i < sm.Count; i++)
+            {
+                sm.DataString[i] = ReadStringFromTextData(sm.Data, (int)sm.Offset[i]);
             }
             return true;
         }
@@ -340,6 +352,20 @@ namespace EscudeTools
                 _ => throw new NotSupportedException($"Unsupported column type: {type}"),
             };
             throw new NotImplementedException();
+        }
+
+        private static string ReadStringFromTextData(byte[] sheet_text, int offset)
+        {
+            List<byte> stringBytes = [];
+            for (int i = offset; i < sheet_text.Length && sheet_text[i] != 0x00; i++)
+            {
+                stringBytes.Add(sheet_text[i]);
+            }
+            EncodingProvider provider = CodePagesEncodingProvider.Instance;
+            Encoding? shiftJis = provider.GetEncoding("shift-jis");
+            return shiftJis == null
+                ? throw new InvalidOperationException("Shift-JIS encoding not supported.")
+                : shiftJis.GetString(stringBytes.ToArray());
         }
     }
 }
