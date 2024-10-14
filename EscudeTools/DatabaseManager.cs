@@ -279,22 +279,17 @@ namespace EscudeTools
         }
         private static bool CsvProcess(Sheet s, string path)
         {
-            //s是单张表，col存放标题（对应csv应该是标题），records存放数据（对应数据库中应该是数据）
             if (string.IsNullOrEmpty(path))
                 throw new ArgumentException("File path cannot be null or empty.", nameof(path));
-
-            // 创建一个StringBuilder来构建CSV内容
             StringBuilder csvContent = new();
 
-            // 写入列标题
             foreach (Column column in s.col)
             {
                 csvContent.Append(column.name);
                 csvContent.Append(',');
             }
-            csvContent.AppendLine(); // 换行
+            csvContent.AppendLine();
 
-            // 写入记录数据
             foreach (Record record in s.records.values.Cast<Record>())
             {
                 foreach (object value in record.values)
@@ -302,10 +297,8 @@ namespace EscudeTools
                     csvContent.Append(value);
                     csvContent.Append(',');
                 }
-                csvContent.AppendLine(); // 换行
+                csvContent.AppendLine();
             }
-
-            // 将CSV内容写入文件
             try
             {
                 File.WriteAllText(path, csvContent.ToString());
