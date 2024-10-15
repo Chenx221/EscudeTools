@@ -146,6 +146,8 @@ namespace EscudeTools
         public static string SetCommandStr(Command c, ScriptFile sf, ScriptMessage sm, ref int messIndex)
         {
             //__cdecl
+            //todo
+            //可考虑对pop进行进一步处理
             switch (c.Instruction)
             {
                 case INST_POP:
@@ -161,7 +163,7 @@ namespace EscudeTools
                 case INST_PUSH_RET:
                     return $"Push the return value";
                 case INST_PUSH_TEXT:
-                    return $"Push a string: {sf.TextString[(uint)c.Parameter[0]]}";
+                    return $"Push a string: {sf.TextString[(uint)c.Parameter]}";
                 case INST_PUSH_MESS:
                     {
                         messIndex++;
@@ -184,7 +186,7 @@ namespace EscudeTools
                 case INST_JMPZ:
                     return $"Conditional jump";
                 case INST_CALL:
-                    return $"Call function offset: {(uint)c.Parameter[0] + 1}";
+                    return $"Call function offset: {(uint)c.Parameter + 1}";
                 case INST_RET:
                     return $"Return";
                 case INST_LOG_OR:
@@ -238,7 +240,7 @@ namespace EscudeTools
                 case INST_LINE:
                     return $"File line number";
                 case INST_PROC:
-                    uint index = (uint)c.Parameter[0];
+                    uint index = (uint)c.Parameter;
                     return $"Execute built-in function: {ProcNames[index]} {SetExtStr(c, sf)}";
                 case INST_TEXT:
                     messIndex++;
@@ -250,7 +252,7 @@ namespace EscudeTools
 
         private static string SetExtStr(Command c, ScriptFile sf)
         {
-            switch ((uint)c.Parameter[0])
+            switch ((uint)c.Parameter)
             {
                 case 0:
                     {

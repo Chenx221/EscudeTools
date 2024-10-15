@@ -34,7 +34,7 @@ namespace EscudeTools
         public uint Offset { get; set; }
         public byte Instruction { get; set; }
         public string InstructionString { get; set; }
-        public List<Object> Parameter { get; set; }
+        public Object Parameter { get; set; }
         public String Helper { get; set; }
         public bool IsProcSet { get; set; }
     }
@@ -70,7 +70,10 @@ namespace EscudeTools
         {
             if (!File.Exists(path))
                 return false;
-            sf ??= new ScriptFile();
+            sf = new ScriptFile();
+            smEncrypted = false;
+            name = string.Empty;
+            messIndex = 0;
             name = Path.GetFileNameWithoutExtension(path);
             using FileStream fs = new(path, FileMode.Open);
             using BinaryReader br = new(fs);
@@ -106,7 +109,6 @@ namespace EscudeTools
             {
                 Command c = new()
                 {
-                    Parameter = [],
                     Instruction = sf.Code[i++],
                     Offset = (uint)i,
                     IsProcSet = false
@@ -116,7 +118,7 @@ namespace EscudeTools
                     c.InstructionString = Define.GetInstructionString(c.Instruction, out int paramNum);
                     for (int j = 0; j < paramNum; j++)
                     {
-                        c.Parameter.Add(Define.TyperHelper(c.Instruction, sf.Code, i));
+                        c.Parameter = Define.TyperHelper(c.Instruction, sf.Code, i);
                         i += 4;
                     }
                     if (sm != null)
@@ -139,7 +141,7 @@ namespace EscudeTools
         {
             if (!File.Exists(path))
                 return false;
-            sm ??= new ScriptMessage();
+            sm = new ScriptMessage();
             using FileStream fs = new(path, FileMode.Open);
             using BinaryReader br = new(fs);
             byte[] head = br.ReadBytes(8);
@@ -245,16 +247,17 @@ namespace EscudeTools
 
         public bool ExportMessDatabase(string? storePath)
         {
-            if (sm.Data == null)
+            if (sf == null)
                 return false;
+            if (sm == null)
+                return true;
             storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
             if (string.IsNullOrEmpty(name))
                 return false;
-            string targetPath = Path.Combine(storePath, name + "script_sm.db");
+            string targetPath = Path.Combine(storePath, "script_sm.db");
             if (!File.Exists(targetPath))
                 ExtractEmbeddedDatabase(targetPath);
-            //return SqliteProcess(sm, targetPath);
-            throw new NotImplementedException();
+            return SqliteProcess(sm, targetPath);
         }
 
         private bool SqliteProcess(ScriptFile sf, string path)
@@ -268,7 +271,7 @@ namespace EscudeTools
             {
                 var result = checkTableCmd.ExecuteScalar();
                 if (result != null)
-                    return false;
+                    return true;
             }
 
             string createTableQuery = $@"
@@ -276,6 +279,7 @@ namespace EscudeTools
                     Offset INTEGER,
                     Instruction INTEGER,
                     InstructionString TEXT,
+                    Parameter TEXT,
                     Helper TEXT
                 );";
 
@@ -284,88 +288,60 @@ namespace EscudeTools
                 createTableCmd.ExecuteNonQuery();
             }
 
-            string insertQuery = $"INSERT INTO {name} (Offset, Instruction, InstructionString, Helper) VALUES (@Offset, @Instruction, @InstructionString, @Helper);";
+            string insertQuery = $"INSERT INTO {name} (Offset, Instruction, InstructionString,Parameter, Helper) VALUES (@Offset, @Instruction, @InstructionString,@Parameter, @Helper);";
 
-            using (var insertCmd = new SqliteCommand(insertQuery, connection))
+            using var insertCmd = new SqliteCommand(insertQuery, connection);
+            foreach (var command in sf.Commands)
             {
-                foreach (var command in sf.Commands)
-                {
-                    insertCmd.Parameters.Clear();
-                    insertCmd.Parameters.AddWithValue("@Offset", command.Offset);
-                    insertCmd.Parameters.AddWithValue("@Instruction", command.Instruction);
-                    insertCmd.Parameters.AddWithValue("@InstructionString", command.InstructionString);
-                    insertCmd.Parameters.AddWithValue("@Helper", command.Helper);
+                insertCmd.Parameters.Clear();
+                insertCmd.Parameters.AddWithValue("@Offset", command.Offset);
+                insertCmd.Parameters.AddWithValue("@Instruction", command.Instruction);
+                insertCmd.Parameters.AddWithValue("@InstructionString", command.InstructionString);
+                insertCmd.Parameters.AddWithValue("@Parameter", command.Parameter == null ? "" : command.Parameter.ToString());
+                insertCmd.Parameters.AddWithValue("@Helper", command.Helper ?? "");
 
-                    insertCmd.ExecuteNonQuery();
-                }
+                insertCmd.ExecuteNonQuery();
             }
 
             return true;
         }
 
-        //下面的没法用
-        //private bool SqliteProcess(ScriptMessage sm, string path)
-        //{
-        //    using SqliteConnection connection = new($"Data Source={path};");
-        //    connection.Open();
+        private bool SqliteProcess(ScriptMessage sm, string path)
+        {
+            using SqliteConnection connection = new($"Data Source={path};");
+            connection.Open();
 
-        //    using (SqliteCommand createTableCommand = connection.CreateCommand())
-        //    {
-        //        StringBuilder createTableQuery = new();
-        //        createTableQuery.Append($"CREATE TABLE IF NOT EXISTS {smName} (");
+            string checkTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}';";
 
-        //        // Add columns to the create table query
-        //        foreach (var column in sheet.col)
-        //        {
-        //            createTableQuery.Append($"{column.name} {GetSQLiteColumnType(column.type)}, ");
-        //        }
+            using (var checkTableCmd = new SqliteCommand(checkTableExistsQuery, connection))
+            {
+                var result = checkTableCmd.ExecuteScalar();
+                if (result != null)
+                    return true;
+            }
 
-        //        createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
-        //        createTableQuery.Append(");");
+            string createTableQuery = $@"
+                CREATE TABLE {name} (
+                    DataString TEXT
+                );";
 
-        //        createTableCommand.CommandText = createTableQuery.ToString();
-        //        createTableCommand.ExecuteNonQuery();
-        //    }
+            using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
+            {
+                createTableCmd.ExecuteNonQuery();
+            }
 
-        //    using SqliteCommand insertDataCommand = connection.CreateCommand();
-        //    StringBuilder insertDataQuery = new();
-        //    insertDataQuery.Append($"INSERT INTO {sheet.name} (");
+            string insertQuery = $"INSERT INTO {name} (DataString) VALUES (@DataString);";
 
-        //    // Add column names to the insert data query
-        //    foreach (var column in sheet.col)
-        //    {
-        //        insertDataQuery.Append($"{column.name}, ");
-        //    }
+            using var insertCmd = new SqliteCommand(insertQuery, connection);
+            foreach (var ds in sm.DataString)
+            {
+                insertCmd.Parameters.Clear();
+                insertCmd.Parameters.AddWithValue("@DataString", ds ?? "");
+                insertCmd.ExecuteNonQuery();
+            }
 
-        //    insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
-        //    insertDataQuery.Append(") VALUES (");
-
-        //    // Add parameter placeholders to the insert data query
-        //    for (int i = 0; i < sheet.cols; i++)
-        //    {
-        //        insertDataQuery.Append($"@param{i}, ");
-        //    }
-
-        //    insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
-        //    insertDataQuery.Append(");");
-
-        //    insertDataCommand.CommandText = insertDataQuery.ToString();
-
-        //    // Add data parameters to the insert data command
-        //    for (int i = 0; i < sheet.records.values.Length; i++)
-        //    {
-        //        var record = (Record)sheet.records.values[i];
-        //        for (int j = 0; j < sheet.cols; j++)
-        //        {
-        //            var parameter = new SqliteParameter($"@param{j}", record.values[j]);
-        //            insertDataCommand.Parameters.Add(parameter);
-        //        }
-
-        //        insertDataCommand.ExecuteNonQuery();
-        //        insertDataCommand.Parameters.Clear();
-        //    }
-        //    return true;
-        //}
+            return true;
+        }
 
         private static string GetSQLiteColumnType(ushort type)
         {
