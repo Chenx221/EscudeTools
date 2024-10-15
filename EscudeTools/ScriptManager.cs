@@ -1,5 +1,7 @@
-﻿using System.Reflection;
+﻿using Microsoft.Data.Sqlite;
+using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 
 namespace EscudeTools
 {
@@ -34,6 +36,7 @@ namespace EscudeTools
         public string InstructionString { get; set; }
         public List<Object> Parameter { get; set; }
         public String Helper { get; set; }
+        public bool IsProcSet { get; set; }
     }
 
     public class ScriptManager
@@ -42,9 +45,8 @@ namespace EscudeTools
         static readonly byte[] FileHeader = [0x40, 0x63, 0x6F, 0x64, 0x65, 0x3A, 0x5F, 0x5F]; //@code:__
         private ScriptMessage sm;
         private bool smEncrypted;
-        private string smName = string.Empty;
+        private string name = string.Empty;
         private ScriptFile sf;
-        private string sfName = string.Empty;
         private int messIndex = 0;
         private bool enableCommandHelper = true;
 
@@ -69,7 +71,7 @@ namespace EscudeTools
             if (!File.Exists(path))
                 return false;
             sf ??= new ScriptFile();
-            sfName = Path.GetFileNameWithoutExtension(path);
+            name = Path.GetFileNameWithoutExtension(path);
             using FileStream fs = new(path, FileMode.Open);
             using BinaryReader br = new(fs);
             byte[] head = br.ReadBytes(8);
@@ -106,7 +108,8 @@ namespace EscudeTools
                 {
                     Parameter = [],
                     Instruction = sf.Code[i++],
-                    Offset = (uint)i
+                    Offset = (uint)i,
+                    IsProcSet = false
                 };
                 if (enableCommandHelper)
                 {
@@ -137,7 +140,6 @@ namespace EscudeTools
             if (!File.Exists(path))
                 return false;
             sm ??= new ScriptMessage();
-            smName = Path.GetFileNameWithoutExtension(path);
             using FileStream fs = new(path, FileMode.Open);
             using BinaryReader br = new(fs);
             byte[] head = br.ReadBytes(8);
@@ -228,48 +230,80 @@ namespace EscudeTools
             stream.CopyTo(fileStream);
         }
 
-        public bool ExportDatabase(int outputType, string? storePath)
+        public bool ExportDatabase(string? storePath)
         {
+            if (sf.Code == null)
+                return false;
             storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
-            throw new NotImplementedException();
-            //switch (outputType)
-            //{
-            //    case 0: //sf
-            //        if (string.IsNullOrEmpty(sfName))
-            //            return false;
-            //        ExtractEmbeddedDatabase(Path.Combine(storePath, sfName + ".db"));
-            //        return SqliteProcess(sf, Path.Combine(storePath, sfName + ".db"));
-            //    case 1: //sm
-            //        if (string.IsNullOrEmpty(smName))
-            //            return false;
-            //        ExtractEmbeddedDatabase(Path.Combine(storePath, smName + ".db"));
-            //        return SqliteProcess(sm, Path.Combine(storePath, smName + ".db"));
-            //    default:
-            //        throw new NotSupportedException("Unsupported output type.");
-            //}
+            if (string.IsNullOrEmpty(name))
+                return false;
+            string targetPath = Path.Combine(storePath, "script.db");
+            if (!File.Exists(targetPath))
+                ExtractEmbeddedDatabase(targetPath);
+            return SqliteProcess(sf, targetPath);
         }
 
-        public bool ExportMessDatabase(int outputType, string? storePath)
+        public bool ExportMessDatabase(string? storePath)
         {
+            if (sm.Data == null)
+                return false;
             storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
+            if (string.IsNullOrEmpty(name))
+                return false;
+            string targetPath = Path.Combine(storePath, name + "script_sm.db");
+            if (!File.Exists(targetPath))
+                ExtractEmbeddedDatabase(targetPath);
+            //return SqliteProcess(sm, targetPath);
             throw new NotImplementedException();
-            //switch (outputType)
-            //{
-            //    case 0: //sf
-            //        if (string.IsNullOrEmpty(sfName))
-            //            return false;
-            //        ExtractEmbeddedDatabase(Path.Combine(storePath, sfName + ".db"));
-            //        return SqliteProcess(sf, Path.Combine(storePath, sfName + ".db"));
-            //    case 1: //sm
-            //        if (string.IsNullOrEmpty(smName))
-            //            return false;
-            //        ExtractEmbeddedDatabase(Path.Combine(storePath, smName + ".db"));
-            //        return SqliteProcess(sm, Path.Combine(storePath, smName + ".db"));
-            //    default:
-            //        throw new NotSupportedException("Unsupported output type.");
-            //}
         }
 
+        private bool SqliteProcess(ScriptFile sf, string path)
+        {
+            using SqliteConnection connection = new($"Data Source={path};");
+            connection.Open();
+
+            string checkTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}';";
+
+            using (var checkTableCmd = new SqliteCommand(checkTableExistsQuery, connection))
+            {
+                var result = checkTableCmd.ExecuteScalar();
+                if (result != null)
+                    return false;
+            }
+
+            string createTableQuery = $@"
+                CREATE TABLE {name} (
+                    Offset INTEGER,
+                    Instruction INTEGER,
+                    InstructionString TEXT,
+                    Helper TEXT
+                );";
+
+            using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
+            {
+                createTableCmd.ExecuteNonQuery();
+            }
+
+            string insertQuery = $"INSERT INTO {name} (Offset, Instruction, InstructionString, Helper) VALUES (@Offset, @Instruction, @InstructionString, @Helper);";
+
+            using (var insertCmd = new SqliteCommand(insertQuery, connection))
+            {
+                foreach (var command in sf.Commands)
+                {
+                    insertCmd.Parameters.Clear();
+                    insertCmd.Parameters.AddWithValue("@Offset", command.Offset);
+                    insertCmd.Parameters.AddWithValue("@Instruction", command.Instruction);
+                    insertCmd.Parameters.AddWithValue("@InstructionString", command.InstructionString);
+                    insertCmd.Parameters.AddWithValue("@Helper", command.Helper);
+
+                    insertCmd.ExecuteNonQuery();
+                }
+            }
+
+            return true;
+        }
+
+        //下面的没法用
         //private bool SqliteProcess(ScriptMessage sm, string path)
         //{
         //    using SqliteConnection connection = new($"Data Source={path};");
@@ -329,73 +363,6 @@ namespace EscudeTools
 
         //        insertDataCommand.ExecuteNonQuery();
         //        insertDataCommand.Parameters.Clear();
-        //    }
-        //    return true;
-        //}
-
-        //private bool SqliteProcess(ScriptFile sf, string path)
-        //{
-        //    //db含有多个sheet，每个sheet中col存放标题（对应数据库中应该是字段），records存放数据（对应数据库中应该是记录）
-        //    using SqliteConnection connection = new($"Data Source={path};");
-        //    connection.Open();
-
-        //    foreach (var sheet in db)
-        //    {
-        //        using (SqliteCommand createTableCommand = connection.CreateCommand())
-        //        {
-        //            StringBuilder createTableQuery = new();
-        //            createTableQuery.Append($"CREATE TABLE IF NOT EXISTS {sheet.name} (");
-
-        //            // Add columns to the create table query
-        //            foreach (var column in sheet.col)
-        //            {
-        //                createTableQuery.Append($"{column.name} {GetSQLiteColumnType(column.type)}, ");
-        //            }
-
-        //            createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
-        //            createTableQuery.Append(");");
-
-        //            createTableCommand.CommandText = createTableQuery.ToString();
-        //            createTableCommand.ExecuteNonQuery();
-        //        }
-
-        //        using SqliteCommand insertDataCommand = connection.CreateCommand();
-        //        StringBuilder insertDataQuery = new();
-        //        insertDataQuery.Append($"INSERT INTO {sheet.name} (");
-
-        //        // Add column names to the insert data query
-        //        foreach (var column in sheet.col)
-        //        {
-        //            insertDataQuery.Append($"{column.name}, ");
-        //        }
-
-        //        insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
-        //        insertDataQuery.Append(") VALUES (");
-
-        //        // Add parameter placeholders to the insert data query
-        //        for (int i = 0; i < sheet.cols; i++)
-        //        {
-        //            insertDataQuery.Append($"@param{i}, ");
-        //        }
-
-        //        insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
-        //        insertDataQuery.Append(");");
-
-        //        insertDataCommand.CommandText = insertDataQuery.ToString();
-
-        //        // Add data parameters to the insert data command
-        //        for (int i = 0; i < sheet.records.values.Length; i++)
-        //        {
-        //            var record = (Record)sheet.records.values[i];
-        //            for (int j = 0; j < sheet.cols; j++)
-        //            {
-        //                var parameter = new SqliteParameter($"@param{j}", record.values[j]);
-        //                insertDataCommand.Parameters.Add(parameter);
-        //            }
-
-        //            insertDataCommand.ExecuteNonQuery();
-        //            insertDataCommand.Parameters.Clear();
-        //        }
         //    }
         //    return true;
         //}

@@ -165,7 +165,7 @@ namespace EscudeTools
                 case INST_PUSH_MESS:
                     {
                         messIndex++;
-                        return $"Push a string: {sm.DataString[messIndex - 1]}";
+                        return $"{sm.DataString[messIndex - 1]}";
                     }
                 case INST_PUSH_GVAR:
                     return $"Push a global variable";
@@ -807,10 +807,19 @@ namespace EscudeTools
 
         private static void SetExtStr1(string[] ps, ScriptFile sf)
         {
-            int index = sf.Commands.Count - 2;
+            int i = sf.Commands.Count - 2;
             for (int k = 0; k < ps.Length; k++)
             {
-                sf.Commands[index--].Helper += $": {ps[k]}";
+                if (sf.Commands[i].IsProcSet || sf.Commands[i].Instruction < 4 || sf.Commands[i].Instruction > 10)
+                {
+                    k--;
+                    i--;
+                    continue;
+                }
+
+                sf.Commands[i].Helper += $": {ps[k]}";
+                sf.Commands[i].IsProcSet = true;
+                i--;
             }
         }
     }

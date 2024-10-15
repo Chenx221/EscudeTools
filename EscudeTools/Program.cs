@@ -6,8 +6,7 @@
         {
             ScriptManager smr = new();
             smr.LoadScriptFile(args[0]); //加载.bin文件
-            //if(args.Length == 2) //不再需要，因为会根据需求自动加载配套.001文件
-            //    smr.LoadScriptMess(args[1]);
+            smr.ExportDatabase(Path.GetDirectoryName(args[0]));
             return;
 
 
