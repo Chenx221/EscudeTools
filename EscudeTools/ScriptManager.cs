@@ -24,63 +24,16 @@ namespace EscudeTools
 
         public uint MessCount { get; set; }     // MESS数 (消息数量)
         public string[] TextString { get; set; } // 给人看的Text内容
-        public List<Command> commands { get; set; } // 给人看的Code内容
+        public List<Command> Commands { get; set; } // 给人看的Code内容
     }
 
     public class Command
     {
+        public uint Offset { get; set; }
         public byte Instruction { get; set; }
         public string InstructionString { get; set; }
-        public List<int> Parameter { get; set; }
-    }
-
-    public static class Instructions
-    {
-        public const byte INST_POP = 1;
-        public const byte INST_POP_N = 2;
-        public const byte INST_POP_RET = 3;
-        public const byte INST_PUSH_INT = 4;
-        public const byte INST_PUSH_FLOAT = 5;
-        public const byte INST_PUSH_RET = 6;
-        public const byte INST_PUSH_TEXT = 7;
-        public const byte INST_PUSH_MESS = 8;
-        public const byte INST_PUSH_GVAR = 9;
-        public const byte INST_PUSH_LVAR = 10;
-        public const byte INST_STORE_GVAR = 11;
-        public const byte INST_STORE_LVAR = 12;
-        public const byte INST_ENTER = 13;
-        public const byte INST_LEAVE = 14;
-        public const byte INST_JMP = 15;
-        public const byte INST_JMPZ = 16;
-        public const byte INST_CALL = 17;
-        public const byte INST_RET = 18;
-        public const byte INST_LOG_OR = 19;
-        public const byte INST_LOG_AND = 20;
-        public const byte INST_LOG_NOT = 21;
-        public const byte INST_OR = 22;
-        public const byte INST_XOR = 23;
-        public const byte INST_AND = 24;
-        public const byte INST_NOT = 25;
-        public const byte INST_CMP_EQ = 26;
-        public const byte INST_CMP_NE = 27;
-        public const byte INST_CMP_LT = 28;
-        public const byte INST_CMP_LE = 29;
-        public const byte INST_CMP_GT = 30;
-        public const byte INST_CMP_GE = 31;
-        public const byte INST_SHL = 32;
-        public const byte INST_SHR = 33;
-        public const byte INST_ADD = 34;
-        public const byte INST_SUB = 35;
-        public const byte INST_MUL = 36;
-        public const byte INST_DIV = 37;
-        public const byte INST_MOD = 38;
-        public const byte INST_NEG = 39;
-        public const byte INST_NAME = 40;
-        public const byte INST_TEXT = 41;
-        public const byte INST_PAGE = 42;
-        public const byte INST_OPTION = 43;
-        public const byte INST_PROC = 44;
-        public const byte INST_LINE = 45;
+        public List<Object> Parameter { get; set; }
+        public String Helper { get; set; }
     }
 
     public class ScriptManager
@@ -92,6 +45,8 @@ namespace EscudeTools
         private string smName = string.Empty;
         private ScriptFile sf;
         private string sfName = string.Empty;
+        private int messIndex = 0;
+        private bool enableCommandHelper = true;
 
         public ScriptMessage GetSM()
         {
@@ -101,6 +56,12 @@ namespace EscudeTools
         public ScriptFile GetSF()
         {
             return sf;
+        }
+
+        public bool ToggleCommandHelper()
+        {
+            enableCommandHelper = !enableCommandHelper;
+            return enableCommandHelper;
         }
 
         public bool LoadScriptFile(string path)
@@ -118,9 +79,10 @@ namespace EscudeTools
             sf.TextCount = ReadUInt32(br);
             sf.TextSize = ReadUInt32(br);
             sf.MessCount = ReadUInt32(br);
-            if(sf.MessCount > 0)
-                if(sm.Data.Length == 0) // 怎么判断加没加载呢？这个写的我自己都不是很确定
-                    LoadScriptMess(Path.ChangeExtension(path, ".001"));
+            if (sf.MessCount > 0)
+                if (sm == null)
+                    if (!LoadScriptMess(Path.ChangeExtension(path, ".001")))
+                        return false;
 
             if (fs.Length < sf.CodeSize + sf.TextSize + 16 + sf.TextCount * 4)
                 return false;
@@ -137,106 +99,29 @@ namespace EscudeTools
             {
                 sf.TextString[i] = ReadStringFromTextData(sf.Text, (int)sf.TextOffset[i]);
             }
-            sf.commands = new List<Command>();
+            sf.Commands = [];
             for (int i = 0; i < sf.CodeSize;)
             {
                 Command c = new()
                 {
                     Parameter = [],
-                    Instruction = sf.Code[i++]
+                    Instruction = sf.Code[i++],
+                    Offset = (uint)i
                 };
-                int paramNum = 0;
-                c.InstructionString = GetInstructionString(c.Instruction, out paramNum);
-                for (int j = 0; j < paramNum; j++)
+                if (enableCommandHelper)
                 {
-                    c.Parameter.Add(BitConverter.ToInt32(sf.Code, i));
-                    i += 4;
+                    c.InstructionString = Define.GetInstructionString(c.Instruction, out int paramNum);
+                    for (int j = 0; j < paramNum; j++)
+                    {
+                        c.Parameter.Add(Define.TyperHelper(c.Instruction, sf.Code, i));
+                        i += 4;
+                    }
+                    if (sm != null)
+                        c.Helper = Define.SetCommandStr(c, sf, sm, ref messIndex);
                 }
-                sf.commands.Add(c);
+                sf.Commands.Add(c);
             }
             return true;
-        }
-
-        private static string GetInstructionString(byte instruction, out int paramNum)
-        {
-            paramNum = 0;
-            string instructionString = instruction switch
-            {
-                Instructions.INST_POP => "INST_POP",
-                Instructions.INST_POP_N => "INST_POP_N",
-                Instructions.INST_POP_RET => "INST_POP_RET",
-                Instructions.INST_PUSH_INT => "INST_PUSH_INT",
-                Instructions.INST_PUSH_FLOAT => "INST_PUSH_FLOAT",
-                Instructions.INST_PUSH_RET => "INST_PUSH_RET",
-                Instructions.INST_PUSH_TEXT => "INST_PUSH_TEXT",
-                Instructions.INST_PUSH_MESS => "INST_PUSH_MESS",
-                Instructions.INST_PUSH_GVAR => "INST_PUSH_GVAR",
-                Instructions.INST_PUSH_LVAR => "INST_PUSH_LVAR",
-                Instructions.INST_STORE_GVAR => "INST_STORE_GVAR",
-                Instructions.INST_STORE_LVAR => "INST_STORE_LVAR",
-                Instructions.INST_ENTER => "INST_ENTER",
-                Instructions.INST_LEAVE => "INST_LEAVE",
-                Instructions.INST_JMP => "INST_JMP",
-                Instructions.INST_JMPZ => "INST_JMPZ",
-                Instructions.INST_CALL => "INST_CALL",
-                Instructions.INST_RET => "INST_RET",
-                Instructions.INST_LOG_OR => "INST_LOG_OR",
-                Instructions.INST_LOG_AND => "INST_LOG_AND",
-                Instructions.INST_LOG_NOT => "INST_LOG_NOT",
-                Instructions.INST_OR => "INST_OR",
-                Instructions.INST_XOR => "INST_XOR",
-                Instructions.INST_AND => "INST_AND",
-                Instructions.INST_NOT => "INST_NOT",
-                Instructions.INST_CMP_EQ => "INST_CMP_EQ",
-                Instructions.INST_CMP_NE => "INST_CMP_NE",
-                Instructions.INST_CMP_LT => "INST_CMP_LT",
-                Instructions.INST_CMP_LE => "INST_CMP_LE",
-                Instructions.INST_CMP_GT => "INST_CMP_GT",
-                Instructions.INST_CMP_GE => "INST_CMP_GE",
-                Instructions.INST_SHL => "INST_SHL",
-                Instructions.INST_SHR => "INST_SHR",
-                Instructions.INST_ADD => "INST_ADD",
-                Instructions.INST_SUB => "INST_SUB",
-                Instructions.INST_MUL => "INST_MUL",
-                Instructions.INST_DIV => "INST_DIV",
-                Instructions.INST_MOD => "INST_MOD",
-                Instructions.INST_NEG => "INST_NEG",
-                Instructions.INST_NAME => "INST_NAME",
-                Instructions.INST_TEXT => "INST_TEXT",
-                Instructions.INST_PAGE => "INST_PAGE",
-                Instructions.INST_OPTION => "INST_OPTION",
-                Instructions.INST_PROC => "INST_PROC",
-                Instructions.INST_LINE => "INST_LINE",
-                _ => "UNKNOWN INSTRUCTION"
-            };
-
-            switch (instruction)
-            {
-                case Instructions.INST_POP_N:
-                case Instructions.INST_PUSH_INT:
-                case Instructions.INST_PUSH_FLOAT:
-                case Instructions.INST_PUSH_TEXT:
-                case Instructions.INST_PUSH_MESS:
-                case Instructions.INST_PUSH_GVAR:
-                case Instructions.INST_PUSH_LVAR:
-                case Instructions.INST_STORE_GVAR:
-                case Instructions.INST_STORE_LVAR:
-                case Instructions.INST_ENTER:
-                case Instructions.INST_JMP:
-                case Instructions.INST_JMPZ:
-                case Instructions.INST_CALL:
-                case Instructions.INST_NAME:
-                case Instructions.INST_TEXT:
-                case Instructions.INST_PROC:
-                case Instructions.INST_LINE:
-                    paramNum = 1;
-                    break;
-                case Instructions.INST_OPTION:
-                    paramNum = 2;
-                    break;
-            }
-
-            return instructionString;
         }
 
         private static uint ReadUInt32(BinaryReader reader)
@@ -344,6 +229,27 @@ namespace EscudeTools
         }
 
         public bool ExportDatabase(int outputType, string? storePath)
+        {
+            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
+            throw new NotImplementedException();
+            //switch (outputType)
+            //{
+            //    case 0: //sf
+            //        if (string.IsNullOrEmpty(sfName))
+            //            return false;
+            //        ExtractEmbeddedDatabase(Path.Combine(storePath, sfName + ".db"));
+            //        return SqliteProcess(sf, Path.Combine(storePath, sfName + ".db"));
+            //    case 1: //sm
+            //        if (string.IsNullOrEmpty(smName))
+            //            return false;
+            //        ExtractEmbeddedDatabase(Path.Combine(storePath, smName + ".db"));
+            //        return SqliteProcess(sm, Path.Combine(storePath, smName + ".db"));
+            //    default:
+            //        throw new NotSupportedException("Unsupported output type.");
+            //}
+        }
+
+        public bool ExportMessDatabase(int outputType, string? storePath)
         {
             storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
             throw new NotImplementedException();
