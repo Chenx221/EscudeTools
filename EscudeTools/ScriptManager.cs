@@ -118,6 +118,9 @@ namespace EscudeTools
             sf.TextCount = ReadUInt32(br);
             sf.TextSize = ReadUInt32(br);
             sf.MessCount = ReadUInt32(br);
+            if(sf.MessCount > 0)
+                if(sm.Data.Length == 0) // 怎么判断加没加载呢？这个写的我自己都不是很确定
+                    LoadScriptMess(Path.ChangeExtension(path, ".001"));
 
             if (fs.Length < sf.CodeSize + sf.TextSize + 16 + sf.TextCount * 4)
                 return false;
@@ -244,7 +247,7 @@ namespace EscudeTools
             return BitConverter.ToUInt32(bytes, 0);
         }
 
-        public bool LoadScriptMess(string path)
+        private bool LoadScriptMess(string path)
         {
             if (!File.Exists(path))
                 return false;
