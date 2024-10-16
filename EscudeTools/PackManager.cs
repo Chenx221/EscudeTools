@@ -177,32 +177,51 @@ namespace EscudeTools
                 bw.Write(m_seed);
                 m_count = (uint)pItem.Count;
                 bw.Write(m_count ^ NextKey());
-                uint namesSize = (uint)pItem.Sum(e => e.Name.Length + 1);
-                bw.Write(namesSize ^ NextKey());
-                uint filenameOffset = 0;
-                long storeOffset = 0x14 + m_count * 12 + namesSize;
-                byte[] index = new byte[m_count * 12];
-                int indexOffset = 0;
-                for (int i = 0; i < m_count; i++)
-                {
-                    BitConverter.GetBytes(filenameOffset).CopyTo(index, indexOffset);
-                    indexOffset += 4;
-                    BitConverter.GetBytes(storeOffset).CopyTo(index, indexOffset);
-                    indexOffset += 4;
-                    BitConverter.GetBytes(pItem[i].Size).CopyTo(index, indexOffset);
-                    indexOffset += 4;
-                    filenameOffset += (uint)pItem[i].Name.Length + 1;
-                    storeOffset += pItem[i].Size;
-                }
-                Decrypt(ref index);
-                bw.Write(index);
                 EncodingProvider provider = CodePagesEncodingProvider.Instance;
                 Encoding? shiftJis = provider.GetEncoding("shift-jis");
-                foreach (Entry entry in pItem)
+                if (version == 1) //未经测试
                 {
-                    byte[] nameBytes = shiftJis.GetBytes(entry.Name);
-                    bw.Write(nameBytes);
-                    bw.Write((byte)0);
+                    long storeOffset = 0x10 + m_count * 0x88;
+                    for (int i = 0; i < m_count; i++)
+                    {
+                        byte[] strbytes = shiftJis.GetBytes(pItem[i].Name);
+                        byte[] result = new byte[80];
+                        int lengthToCopy = Math.Min(strbytes.Length, 78);
+                        Array.Copy(strbytes, result, lengthToCopy);
+                        bw.Write(result);
+                        bw.Write(storeOffset);
+                        bw.Write(pItem[i].Size);
+                        storeOffset += pItem[i].Size;
+                    }
+                }
+                else
+                {
+                    uint namesSize = (uint)pItem.Sum(e => e.Name.Length + 1);
+                    bw.Write(namesSize ^ NextKey());
+                    uint filenameOffset = 0;
+                    long storeOffset = 0x14 + m_count * 12 + namesSize;
+                    byte[] index = new byte[m_count * 12];
+                    int indexOffset = 0;
+                    for (int i = 0; i < m_count; i++)
+                    {
+                        BitConverter.GetBytes(filenameOffset).CopyTo(index, indexOffset);
+                        indexOffset += 4;
+                        BitConverter.GetBytes(storeOffset).CopyTo(index, indexOffset);
+                        indexOffset += 4;
+                        BitConverter.GetBytes(pItem[i].Size).CopyTo(index, indexOffset);
+                        indexOffset += 4;
+                        filenameOffset += (uint)pItem[i].Name.Length + 1;
+                        storeOffset += pItem[i].Size;
+                    }
+                    Decrypt(ref index);
+                    bw.Write(index);
+
+                    foreach (Entry entry in pItem)
+                    {
+                        byte[] nameBytes = shiftJis.GetBytes(entry.Name);
+                        bw.Write(nameBytes);
+                        bw.Write((byte)0);
+                    }
                 }
                 foreach (Entry entry in pItem)
                 {
