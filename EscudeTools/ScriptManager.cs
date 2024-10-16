@@ -266,45 +266,46 @@ namespace EscudeTools
             connection.Open();
 
             string checkTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}';";
-
             using (var checkTableCmd = new SqliteCommand(checkTableExistsQuery, connection))
             {
                 var result = checkTableCmd.ExecuteScalar();
-                if (result != null)
-                    return true;
+                if (result != null) return true;
             }
 
             string createTableQuery = $@"
-                CREATE TABLE {name} (
-                    Offset INTEGER,
-                    Instruction INTEGER,
-                    InstructionString TEXT,
-                    Parameter TEXT,
-                    Helper TEXT
-                );";
-
+        CREATE TABLE {name} (
+            Offset INTEGER,
+            Instruction INTEGER,
+            InstructionString TEXT,
+            Parameter TEXT,
+            Helper TEXT
+        );";
             using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
             {
                 createTableCmd.ExecuteNonQuery();
             }
 
-            string insertQuery = $"INSERT INTO {name} (Offset, Instruction, InstructionString,Parameter, Helper) VALUES (@Offset, @Instruction, @InstructionString,@Parameter, @Helper);";
+            string insertQuery = $"INSERT INTO {name} (Offset, Instruction, InstructionString, Parameter, Helper) VALUES (@Offset, @Instruction, @InstructionString, @Parameter, @Helper);";
 
-            using var insertCmd = new SqliteCommand(insertQuery, connection);
+            using var transaction = connection.BeginTransaction();
+            using var insertCmd = new SqliteCommand(insertQuery, connection, transaction);
+
             foreach (var command in sf.Commands)
             {
                 insertCmd.Parameters.Clear();
                 insertCmd.Parameters.AddWithValue("@Offset", command.Offset);
                 insertCmd.Parameters.AddWithValue("@Instruction", command.Instruction);
                 insertCmd.Parameters.AddWithValue("@InstructionString", command.InstructionString);
-                insertCmd.Parameters.AddWithValue("@Parameter", command.Parameter == null ? "" : command.Parameter.ToString());
+                insertCmd.Parameters.AddWithValue("@Parameter", command.Parameter ?? "");
                 insertCmd.Parameters.AddWithValue("@Helper", command.Helper ?? "");
 
                 insertCmd.ExecuteNonQuery();
             }
 
+            transaction.Commit();
             return true;
         }
+
 
         private bool SqliteProcess(ScriptMessage sm, string path)
         {
@@ -312,19 +313,16 @@ namespace EscudeTools
             connection.Open();
 
             string checkTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}';";
-
             using (var checkTableCmd = new SqliteCommand(checkTableExistsQuery, connection))
             {
                 var result = checkTableCmd.ExecuteScalar();
-                if (result != null)
-                    return true;
+                if (result != null) return true;
             }
 
             string createTableQuery = $@"
-                CREATE TABLE {name} (
-                    DataString TEXT
-                );";
-
+        CREATE TABLE {name} (
+            DataString TEXT
+        );";
             using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
             {
                 createTableCmd.ExecuteNonQuery();
@@ -332,7 +330,9 @@ namespace EscudeTools
 
             string insertQuery = $"INSERT INTO {name} (DataString) VALUES (@DataString);";
 
-            using var insertCmd = new SqliteCommand(insertQuery, connection);
+            using var transaction = connection.BeginTransaction();
+            using var insertCmd = new SqliteCommand(insertQuery, connection, transaction);
+
             foreach (var ds in sm.DataString)
             {
                 insertCmd.Parameters.Clear();
@@ -340,8 +340,10 @@ namespace EscudeTools
                 insertCmd.ExecuteNonQuery();
             }
 
+            transaction.Commit();
             return true;
         }
+
 
         private static string GetSQLiteColumnType(ushort type)
         {

@@ -146,14 +146,19 @@ namespace EscudeTools
         public static string SetCommandStr(Command c, ScriptFile sf, ScriptMessage sm, ref int messIndex)
         {
             //__cdecl
-            //todo
-            //可考虑对pop进行进一步处理
             switch (c.Instruction)
             {
                 case INST_POP:
-                    return "Pop a value";
+                    {
+                        Mark(sf, 1);
+                        return "Pop a value";
+                    }
+                    
                 case INST_POP_N:
-                    return $"Pop multiple values";
+                    {
+                        Mark(sf, (uint)c.Parameter);
+                        return $"Pop multiple values";
+                    }
                 case INST_POP_RET:
                     return $"Pop a return value";
                 case INST_PUSH_INT:
@@ -247,6 +252,18 @@ namespace EscudeTools
                     return sm.DataString[messIndex - 1];
                 default:
                     return "UNKNOWN";
+            }
+        }
+
+        private static void Mark(ScriptFile sf, uint j)
+        {
+            int k = sf.Commands.Count - 1;
+            for (int i = 0; i < j; i++)
+            {
+                if (sf.Commands[k].Instruction <= 10 && sf.Commands[k].Instruction >= 4 && !sf.Commands[k].IsProcSet)
+                {
+                    sf.Commands[k--].IsProcSet = true;
+                }
             }
         }
 
@@ -810,6 +827,7 @@ namespace EscudeTools
         private static void SetExtStr1(string[] ps, ScriptFile sf)
         {
             int i = sf.Commands.Count - 2;
+            sf.Commands[i + 1].IsProcSet = true;
             for (int k = 0; k < ps.Length; k++)
             {
                 if (sf.Commands[i].IsProcSet || sf.Commands[i].Instruction < 4 || sf.Commands[i].Instruction > 10)
