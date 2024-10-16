@@ -4,59 +4,16 @@
     {
         static void Main(string[] args)
         {
-            if (Directory.Exists(args[0]))
-            {
-                string[] files = Directory.GetFiles(args[0], "*.bin");
-                foreach (string file in files)
-                {
-                    ScriptManager smr = new();
-                    //目前不支持二次加载
-                    //Todo
-                    //修复
-                    if (smr.LoadScriptFile(file))
-                    {
-                        Console.WriteLine($"Load {file} Success");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Load {file} Failed");
-                        return;
-                    }
-
-                    if (smr.ExportDatabase(Path.GetDirectoryName(args[0])))
-                        Console.WriteLine("Export Database Success");
-                    else
-                    {
-                        Console.WriteLine("Export Database Failed");
-                        return;
-                    }
-
-                    if (smr.ExportMessDatabase(Path.GetDirectoryName(args[0])))
-                        Console.WriteLine("Export Mess Database Success");
-                    else
-                    {
-                        Console.WriteLine("Export Mess Database Failed");
-                        return;
-                    }
-                }
-
-            }
-
-
-            //ScriptManager smr = new();
-            //smr.LoadScriptFile(args[0]); //加载.bin文件
-            //smr.ExportDatabase(Path.GetDirectoryName(args[0]));
-            //smr.ExportMessDatabase(Path.GetDirectoryName(args[0]));
-            //return;
-
-
             //if (Directory.Exists(args[0]))
             //{
-            //    string[] files = Directory.GetFiles(args[0], "db_*.bin");
-            //    DatabaseManager dm = new();
+            //    string[] files = Directory.GetFiles(args[0], "*.bin");
             //    foreach (string file in files)
             //    {
-            //        if (dm.LoadDatabase(file))
+            //        ScriptManager smr = new();
+            //        //目前不支持二次加载
+            //        //Todo
+            //        //修复
+            //        if (smr.LoadScriptFile(file))
             //        {
             //            Console.WriteLine($"Load {file} Success");
             //        }
@@ -66,7 +23,7 @@
             //            return;
             //        }
 
-            //        if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
+            //        if (smr.ExportDatabase(Path.GetDirectoryName(args[0])))
             //            Console.WriteLine("Export Database Success");
             //        else
             //        {
@@ -74,9 +31,52 @@
             //            return;
             //        }
 
+            //        if (smr.ExportMessDatabase(Path.GetDirectoryName(args[0])))
+            //            Console.WriteLine("Export Mess Database Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Export Mess Database Failed");
+            //            return;
+            //        }
             //    }
 
             //}
+
+
+            //ScriptManager smr = new();
+            //smr.LoadScriptFile(args[0]); //加载.bin文件
+            //smr.ExportDatabase(Path.GetDirectoryName(args[0]));
+            //smr.ExportMessDatabase(Path.GetDirectoryName(args[0]));
+            //return;
+
+
+            if (Directory.Exists(args[0]))
+            {
+                string[] files = Directory.GetFiles(args[0], "db_*.bin");
+                DatabaseManager dm = new();
+                foreach (string file in files)
+                {
+                    if (dm.LoadDatabase(file))
+                    {
+                        Console.WriteLine($"Load {file} Success");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Load {file} Failed");
+                        return;
+                    }
+
+                    if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
+                        Console.WriteLine("Export Database Success");
+                    else
+                    {
+                        Console.WriteLine("Export Database Failed");
+                        return;
+                    }
+
+                }
+
+            }
 
 
             //    if (args.Length == 0 || args.Length > 2)

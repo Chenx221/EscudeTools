@@ -1,6 +1,8 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Reflection;
+using System.Reflection.Metadata;
 using System.Text;
+using System.Transactions;
 
 namespace EscudeTools
 {
@@ -200,7 +202,7 @@ namespace EscudeTools
             //db含有多个sheet，每个sheet中col存放标题（对应数据库中应该是字段），records存放数据（对应数据库中应该是记录）
             using SqliteConnection connection = new($"Data Source={path};");
             connection.Open();
-
+            using var transaction = connection.BeginTransaction();
             foreach (var sheet in db)
             {
                 using (SqliteCommand createTableCommand = connection.CreateCommand())
@@ -259,6 +261,7 @@ namespace EscudeTools
                     insertDataCommand.Parameters.Clear();
                 }
             }
+            transaction.Commit();
             return true;
         }
         private static string GetSQLiteColumnType(ushort type)
