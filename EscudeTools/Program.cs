@@ -4,6 +4,52 @@
     {
         static void Main(string[] args)
         {
+
+
+            if (Directory.Exists(args[0]))
+            {
+                string[] files = Directory.GetFiles(args[0], "*.bin");
+                PackManager pm = new();
+                foreach (string file in files)
+                {
+                    if (pm.Load(file))
+                    {
+                        Console.WriteLine($"Load {file} Success");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Load {file} Failed");
+                        return;
+                    }
+
+                    if (pm.Extract())
+                        Console.WriteLine("Export Database Success");
+                    else
+                    {
+                        Console.WriteLine("Export Database Failed");
+                        return;
+                    }
+
+                    if (pm.Repack(args[1]))
+                        Console.WriteLine("Export Database Success");
+                    else
+                    {
+                        Console.WriteLine("Export Database Failed");
+                        return;
+                    }
+                }
+
+            }
+
+            //PackManager pm = new();
+            //if (pm.Repack(args[1]))
+            //    Console.WriteLine("Export Database Success");
+            //else
+            //{
+            //    Console.WriteLine("Export Database Failed");
+            //    return;
+            //}
+
             //if (Directory.Exists(args[0]))
             //{
             //    string[] files = Directory.GetFiles(args[0], "*.bin");
@@ -50,33 +96,33 @@
             //return;
 
 
-            if (Directory.Exists(args[0]))
-            {
-                string[] files = Directory.GetFiles(args[0], "db_*.bin");
-                DatabaseManager dm = new();
-                foreach (string file in files)
-                {
-                    if (dm.LoadDatabase(file))
-                    {
-                        Console.WriteLine($"Load {file} Success");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Load {file} Failed");
-                        return;
-                    }
+            //if (Directory.Exists(args[0]))
+            //{
+            //    string[] files = Directory.GetFiles(args[0], "db_*.bin");
+            //    DatabaseManager dm = new();
+            //    foreach (string file in files)
+            //    {
+            //        if (dm.LoadDatabase(file))
+            //        {
+            //            Console.WriteLine($"Load {file} Success");
+            //        }
+            //        else
+            //        {
+            //            Console.WriteLine($"Load {file} Failed");
+            //            return;
+            //        }
 
-                    if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
-                        Console.WriteLine("Export Database Success");
-                    else
-                    {
-                        Console.WriteLine("Export Database Failed");
-                        return;
-                    }
+            //        if (dm.ExportDatabase(0, Path.GetDirectoryName(args[0])))
+            //            Console.WriteLine("Export Database Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Export Database Failed");
+            //            return;
+            //        }
 
-                }
+            //    }
 
-            }
+            //}
 
 
             //    if (args.Length == 0 || args.Length > 2)

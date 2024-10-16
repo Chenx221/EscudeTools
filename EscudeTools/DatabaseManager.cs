@@ -78,7 +78,7 @@ namespace EscudeTools
             Sheet sheet = new();
             //process struct
             uint nameOffset = BitConverter.ToUInt32(sheet_struct, 0);
-            sheet.name = ReadStringFromTextData(sheet_text, (int)nameOffset);
+            sheet.name = Utils.ReadStringFromTextData(sheet_text, (int)nameOffset);
             sheet.cols = BitConverter.ToUInt32(sheet_struct, 4);
             sheet.col = new Column[sheet.cols];
             int offset = 8;
@@ -92,7 +92,7 @@ namespace EscudeTools
                     throw new NotSupportedException("Unsupported Format"); //暂时不受支持的0x2 0x3
                 column.size = BitConverter.ToUInt16(sheet_struct, offset + 2);
                 uint columnNameOffset = BitConverter.ToUInt32(sheet_struct, offset + 4);
-                column.name = ReadStringFromTextData(sheet_text, (int)columnNameOffset);
+                column.name = Utils.ReadStringFromTextData(sheet_text, (int)columnNameOffset);
                 sheet.col[i] = column;
                 offset += 8;
             }
@@ -115,7 +115,7 @@ namespace EscudeTools
                         }
                         else
                         {
-                            record.values[j] = ReadStringFromTextData(sheet_text, (int)textOffset);
+                            record.values[j] = Utils.ReadStringFromTextData(sheet_text, (int)textOffset);
                         }
 
                     }
@@ -137,20 +137,6 @@ namespace EscudeTools
             }
             sheet.records = recordFather;
             return sheet;
-        }
-
-        private static string ReadStringFromTextData(byte[] sheet_text, int offset)
-        {
-            List<byte> stringBytes = [];
-            for (int i = offset; i < sheet_text.Length && sheet_text[i] != 0x00; i++)
-            {
-                stringBytes.Add(sheet_text[i]);
-            }
-            EncodingProvider provider = CodePagesEncodingProvider.Instance;
-            Encoding? shiftJis = provider.GetEncoding("shift-jis");
-            return shiftJis == null
-                ? throw new InvalidOperationException("Shift-JIS encoding not supported.")
-                : shiftJis.GetString(stringBytes.ToArray());
         }
 
         public bool ExportDatabase(int outputType, string? storePath)
