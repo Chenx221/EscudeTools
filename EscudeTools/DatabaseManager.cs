@@ -22,6 +22,8 @@ namespace EscudeTools
     public class Record(int columnCount)
     {
         public object[] values = new object[columnCount];  // 每列的数据值
+        //提示
+        //颜色值转换可以看看https://argb-int-calculator.netlify.app/
     }
     public class DatabaseManager
     {
@@ -119,7 +121,15 @@ namespace EscudeTools
                     }
                     else
                     {
-                        record.values[j] = BitConverter.ToInt32(sheet_data, offset);
+                        if (sheet.col[j].size == 1)
+                            record.values[j] = sheet_data[offset];
+                        else if (sheet.col[j].size == 2)
+                            record.values[j] = BitConverter.ToInt16(sheet_data, offset);
+                        else if (sheet.col[j].size == 4 && sheet.col[j].type == 1 && sheet.col[j].name == "色") //无奈
+                            record.values[j] = BitConverter.ToUInt32(sheet_data, offset);
+                        else
+                            record.values[j] = BitConverter.ToInt32(sheet_data, offset);
+
                     }
                     offset += sheet.col[j].size; //较小概率还有问题
                 }

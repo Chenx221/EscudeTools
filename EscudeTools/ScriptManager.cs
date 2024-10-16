@@ -71,9 +71,6 @@ namespace EscudeTools
             if (!File.Exists(path))
                 return false;
             sf = new ScriptFile();
-            smEncrypted = false;
-            name = string.Empty;
-            messIndex = 0;
             name = Path.GetFileNameWithoutExtension(path);
             using FileStream fs = new(path, FileMode.Open);
             using BinaryReader br = new(fs);
