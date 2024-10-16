@@ -29,14 +29,6 @@
                         Console.WriteLine("Export Database Failed");
                         return;
                     }
-
-                    if (pm.Repack(args[1]))
-                        Console.WriteLine("Export Database Success");
-                    else
-                    {
-                        Console.WriteLine("Export Database Failed");
-                        return;
-                    }
                 }
 
             }
