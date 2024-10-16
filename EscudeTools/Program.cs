@@ -12,21 +12,29 @@
                 PackManager pm = new();
                 foreach (string file in files)
                 {
-                    if (pm.Load(file))
-                    {
-                        Console.WriteLine($"Load {file} Success");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Load {file} Failed");
-                        return;
-                    }
+                    //if (pm.Load(file))
+                    //{
+                    //    Console.WriteLine($"Load {file} Success");
+                    //}
+                    //else
+                    //{
+                    //    Console.WriteLine($"Load {file} Failed");
+                    //    return;
+                    //}
 
-                    if (pm.Extract())
-                        Console.WriteLine("Export Database Success");
+                    //if (pm.Extract())
+                    //    Console.WriteLine("Extract Package Success");
+                    //else
+                    //{
+                    //    Console.WriteLine("Extract Package Failed");
+                    //    return;
+                    //}
+
+                    if (pm.Repack(args[1], 2))
+                        Console.WriteLine("Repack Package Success");
                     else
                     {
-                        Console.WriteLine("Export Database Failed");
+                        Console.WriteLine("Repack Package Failed");
                         return;
                     }
                 }

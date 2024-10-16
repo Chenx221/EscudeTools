@@ -1,4 +1,5 @@
 ﻿//这里的代码参考(Ctrl+C, Ctrl+V)了Garbro中关于ESCUDE BIN封包的实现
+using System.Linq;
 using System.Text;
 
 namespace EscudeTools
@@ -14,6 +15,7 @@ namespace EscudeTools
         static readonly byte[] fileSignature = [0x45, 0x53, 0x43, 0x2D, 0x41, 0x52, 0x43]; //"ESC-ARC"
         static readonly byte[] supportPackVersion = [0x31, 0x32]; //1, 2
         private bool isLoaded = false;
+        private uint LoadedKey;
         private string pFile = "";
         private uint m_seed;
         private uint m_count;
@@ -54,6 +56,7 @@ namespace EscudeTools
         private List<Entry>? ProcessV1(BinaryReader br)
         {
             m_seed = br.ReadUInt32();
+            LoadedKey = m_seed;
             m_count = br.ReadUInt32() ^ NextKey();
             uint index_size = m_count * 0x88;
             byte[] index = Utils.ReadBytes(br, index_size);
@@ -80,6 +83,7 @@ namespace EscudeTools
         private List<Entry>? ProcessV2(BinaryReader br)
         {
             m_seed = br.ReadUInt32();
+            LoadedKey = m_seed;
             m_count = br.ReadUInt32() ^ NextKey();
             uint names_size = br.ReadUInt32() ^ NextKey();
             uint index_size = m_count * 12;
@@ -160,9 +164,71 @@ namespace EscudeTools
             return true;
         }
 
-        public bool Repack(string path)
+        public bool Repack(string path, int version) //目前支持v2
         {
-            throw new NotSupportedException("Repack not supported");
+            GeneratePItem(path);
+            m_seed = isLoaded ? LoadedKey : 2210579460;
+            string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(path) + ".bin");
+            using (FileStream fs = new(outputPath, FileMode.Create))
+            using (BinaryWriter bw = new(fs))
+            {
+                bw.Write(fileSignature);
+                bw.Write(supportPackVersion[version - 1]);
+                bw.Write(m_seed);
+                m_count = (uint)pItem.Count;
+                bw.Write(m_count ^ NextKey());
+                uint namesSize = (uint)pItem.Sum(e => e.Name.Length + 1);
+                bw.Write(namesSize ^ NextKey());
+                uint filenameOffset = 0;
+                long storeOffset = 0x14 + m_count * 12 + namesSize;
+                byte[] index = new byte[m_count * 12];
+                int indexOffset = 0;
+                for (int i = 0; i < m_count; i++)
+                {
+                    BitConverter.GetBytes(filenameOffset).CopyTo(index, indexOffset);
+                    indexOffset += 4;
+                    BitConverter.GetBytes(storeOffset).CopyTo(index, indexOffset);
+                    indexOffset += 4;
+                    BitConverter.GetBytes(pItem[i].Size).CopyTo(index, indexOffset);
+                    indexOffset += 4;
+                    filenameOffset += (uint)pItem[i].Name.Length + 1;
+                    storeOffset += pItem[i].Size;
+                }
+                Decrypt(ref index);
+                bw.Write(index);
+                EncodingProvider provider = CodePagesEncodingProvider.Instance;
+                Encoding? shiftJis = provider.GetEncoding("shift-jis");
+                foreach (Entry entry in pItem)
+                {
+                    byte[] nameBytes = shiftJis.GetBytes(entry.Name);
+                    bw.Write(nameBytes);
+                    bw.Write((byte)0);
+                }
+                foreach (Entry entry in pItem)
+                {
+                    byte[] data = File.ReadAllBytes(Path.Combine(path, entry.Name));
+                    bw.Write(data);
+                }
+            }
+            return true;
+        }
+
+
+        private void GeneratePItem(string path)
+        {
+            pItem.Clear();
+            var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
+            foreach (var file in files)
+            {
+                var relativePath = Path.GetRelativePath(path, file);
+                var fileInfo = new FileInfo(file);
+                pItem.Add(new Entry
+                {
+                    Name = relativePath,
+                    Size = (uint)fileInfo.Length
+                });
+            }
+            m_count = (uint)pItem.Count;
         }
     }
 }
