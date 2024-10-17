@@ -106,11 +106,11 @@
 
                 }
             }
-            //}
+            
             //if (Directory.Exists(args[0]))
             //{
             //    string[] files = Directory.GetFiles(args[0], "*.bin");
-            //    DatabaseManager dm = new DatabaseManager();
+            //    DatabaseManager dm = new();
             //    foreach (string file in files)
             //    {
             //        dm.LoadDatabase(file);

@@ -96,7 +96,7 @@ namespace EscudeTools
                 offset += 8;
             }
             uint columnSizes = 0;
-            for(int i = 0; i < sheet.cols; i++)
+            for (int i = 0; i < sheet.cols; i++)
             {
                 columnSizes += sheet.col[i].size;
             }
@@ -264,8 +264,10 @@ namespace EscudeTools
                 }
                 uint structSize = 8 + 8 * colsNum;
                 bw.Write(structSize);//结构体大小
-                uint textOffset = 1;
-                List<string> text = [];
+                uint textOffset = 0;
+                bool flag = true; //只有sheetname和columnname需要text表？
+                bool flag2 = true; //第一行是空的吗
+                List<string> text = []; //只能放不重复
                 List<string> textMulti = []; //允许重复字符串
                 ushort[] types = new ushort[colsNum];
                 ushort[] sizes = new ushort[colsNum];
@@ -285,18 +287,37 @@ namespace EscudeTools
                 {
                     recordCount = Convert.ToInt32(command.ExecuteScalar());
                 }
-
-                //uint dataSize = 4 * colsNum * (uint)recordCount;
                 uint dataSize = (uint)(sizes.Sum(x => (uint)x) * recordCount);
+
+                using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    reader.Read();
+                    if (reader.GetFieldType(1) == typeof(int))
+                    {
+                        flag2 = reader.GetInt32(1)==0;
+                    }
+                    else if (reader.GetFieldType(1) == typeof(string))
+                    {
+                        flag2 = string.IsNullOrEmpty(reader.GetString(1));
+                    }
+                }
+
 
                 List<uint> textOffset1 = [];
                 for (int i = 0; i < cnames.Length; i++)
                 {
                     if (types[i] != 4)
                         continue;
+                    if (textOffset == 0&&flag2)
+                    {
+                        textOffset++;
+                        flag = false;
+                    }
+
                     using var colCommand = new SqliteCommand($"SELECT {cnames[i]} FROM {tableName};", connection);
                     using var colReader = colCommand.ExecuteReader();
-                    bool first = true;
+                    bool first = flag2;
                     while (colReader.Read())
                     {
                         if (first)
@@ -323,14 +344,29 @@ namespace EscudeTools
                         }
                     }
                 }
-                text.Add(tableName[..^3]);
-                textOffset1.Add(textOffset);
-                textOffset += (uint)shiftJis.GetBytes(tableName[..^3]).Length + 1;
+                int index1 = textMulti.IndexOf(tableName[..^3]);
+                textMulti.Add(tableName[..^3]);
+                if(index1 == -1)
+                {
+                    text.Add(tableName[..^3]);//表名
+                    textOffset1.Add(textOffset);
+                    textOffset += (uint)shiftJis.GetBytes(tableName[..^3]).Length + 1;
+                }
+                else
+                    textOffset1.Add(textOffset1[index1]);
+
                 foreach (string c in cnames)
                 {
-                    text.Add(c[..^3]);
-                    textOffset1.Add(textOffset);
-                    textOffset += (uint)shiftJis.GetBytes(c[..^3]).Length + 1;
+                    index1 = textMulti.IndexOf(c[..^3]);
+                    textMulti.Add(c[..^3]);
+                    if (index1 == -1)
+                    {
+                        text.Add(c[..^3]);//列名
+                        textOffset1.Add(textOffset);
+                        textOffset += (uint)shiftJis.GetBytes(c[..^3]).Length + 1;
+                    }
+                    else
+                        textOffset1.Add(textOffset1[index1]);
                 }
                 //
                 bw.Write(textOffset1[textOffset1.Count - cnames.Length - 1]); //表名在text中的偏移
@@ -343,14 +379,18 @@ namespace EscudeTools
                 }
                 bw.Write(dataSize);//数据大小
                 //填充垃圾
-                byte[] zeroBytes = new byte[sizes.Sum(x => (uint)x)];
-                bw.Write(zeroBytes);
+                if (flag2)
+                {
+                    byte[] zeroBytes = new byte[sizes.Sum(x => (uint)x)];
+                    bw.Write(zeroBytes);
+                }
+
                 //填充数据
                 using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
                 using (var reader = command.ExecuteReader())
                 {
                     int index = 0;
-                    bool first = true;
+                    bool first = flag2;
                     while (reader.Read())
                     {
                         if (first)
@@ -366,7 +406,10 @@ namespace EscudeTools
                             string cname = cnames[i][..^3];
                             if (type == 4)
                             {
-                                bw.Write(textOffset1[index + (recordCount - 1) * j++]);//fix bug
+                                if (flag2)
+                                    bw.Write(textOffset1[index + (recordCount - 1) * j++]);//fix bug
+                                else
+                                    bw.Write(textOffset1[index + (recordCount) * j++]);
                             }
                             else if (cname == "色" && size == 4)
                                 bw.Write((uint)reader.GetInt64(i));
@@ -381,7 +424,12 @@ namespace EscudeTools
                     }
                 }
                 bw.Write(textOffset);//文本大小
-                bw.Write((byte)0);//垃圾
+                //bool flag = true; //只有sheetname和columnname需要text表？
+                //bool flag2 = true; //第一行是空的吗
+                if (!flag)
+                {
+                    bw.Write((byte)0);//垃圾
+                }
                 foreach (var str in text)//文本
                 {
                     bw.Write(shiftJis.GetBytes(str));
