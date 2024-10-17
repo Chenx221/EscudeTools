@@ -1,9 +1,4 @@
-﻿using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Xml.Linq;
-using System.ComponentModel.Design;
-
+﻿//以下是垃圾代码，仅供参考
 namespace EscudeTools
 {
     public static class Define

@@ -1,7 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Reflection;
-using System.Text;
-using System.Xml.Linq;
 
 namespace EscudeTools
 {
@@ -77,10 +75,10 @@ namespace EscudeTools
             byte[] head = br.ReadBytes(8);
             if (!head.SequenceEqual(FileHeader))
                 return false;
-            sf.CodeSize = ReadUInt32(br);
-            sf.TextCount = ReadUInt32(br);
-            sf.TextSize = ReadUInt32(br);
-            sf.MessCount = ReadUInt32(br);
+            sf.CodeSize = Utils.ReadUInt32(br);
+            sf.TextCount = Utils.ReadUInt32(br);
+            sf.TextSize = Utils.ReadUInt32(br);
+            sf.MessCount = Utils.ReadUInt32(br);
             if (sf.MessCount > 0)
                 if (sm == null)
                     if (!LoadScriptMess(Path.ChangeExtension(path, ".001")))
@@ -99,7 +97,7 @@ namespace EscudeTools
             sf.TextString = new string[sf.TextCount];
             for (int i = 0; i < sf.TextCount; i++)
             {
-                sf.TextString[i] = ReadStringFromTextData(sf.Text, (int)sf.TextOffset[i]);
+                sf.TextString[i] = Utils.ReadStringFromTextData(sf.Text, (int)sf.TextOffset[i]);
             }
             sf.Commands = [];
             for (int i = 0; i < sf.CodeSize;)
@@ -126,14 +124,6 @@ namespace EscudeTools
             return true;
         }
 
-        private static uint ReadUInt32(BinaryReader reader)
-        {
-            byte[] bytes = reader.ReadBytes(4);
-            if (bytes.Length < 4)
-                throw new EndOfStreamException("Unexpected end of stream while reading UInt32.");
-            return BitConverter.ToUInt32(bytes, 0);
-        }
-
         private bool LoadScriptMess(string path)
         {
             if (!File.Exists(path))
@@ -145,8 +135,8 @@ namespace EscudeTools
             smEncrypted = head.SequenceEqual(MessHeader);
             if (smEncrypted)
             {
-                sm.Count = ReadUInt32(br);
-                sm.Size = ReadUInt32(br);
+                sm.Count = Utils.ReadUInt32(br);
+                sm.Size = Utils.ReadUInt32(br);
                 sm.Offset = [];
                 for (int i = 0; i < sm.Count; i++)
                 {
@@ -169,7 +159,7 @@ namespace EscudeTools
                 uint offset = 0;
                 for (uint i = 0; i < sm.Size; i++)
                 {
-                    if (ISKANJI(sm.Data[i]))
+                    if (Utils.ISKANJI(sm.Data[i]))
                         i++;
                     else
                     {
@@ -200,45 +190,21 @@ namespace EscudeTools
             sm.DataString = new string[sm.Count];
             for (int i = 0; i < sm.Count; i++)
             {
-                sm.DataString[i] = ReadStringFromTextData(sm.Data, (int)sm.Offset[i]);
+                sm.DataString[i] = Utils.ReadStringFromTextData(sm.Data, (int)sm.Offset[i]);
             }
             return true;
-        }
-
-        private static bool ISKANJI(byte x)
-        {
-            return (((x) ^ 0x20) - 0xa1) <= 0x3b;
-        }
-
-        private static void ExtractEmbeddedDatabase(string outputPath)
-        {
-            if (File.Exists(outputPath))
-            {
-                Console.WriteLine($"File {outputPath} already exists. Do you want to overwrite it? (y/n)");
-                string? input = Console.ReadLine();
-                if (input?.ToLower() != "y")
-                {
-                    Console.WriteLine("Task cancelled, Exporting database aborted.");
-                    return;
-                }
-            }
-            var assembly = Assembly.GetExecutingAssembly();
-            string resourceName = "EscudeTools.empty.db";
-            using Stream stream = assembly.GetManifestResourceStream(resourceName) ?? throw new Exception($"Error, No resource with name {resourceName} found.");
-            using FileStream fileStream = new(outputPath, FileMode.Create, FileAccess.Write);
-            stream.CopyTo(fileStream);
         }
 
         public bool ExportDatabase(string? storePath)
         {
             if (sf.Code == null)
                 return false;
-            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
+            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory.");
             if (string.IsNullOrEmpty(name))
                 return false;
             string targetPath = Path.Combine(storePath, "script.db");
             if (!File.Exists(targetPath))
-                ExtractEmbeddedDatabase(targetPath);
+                Utils.ExtractEmbeddedDatabase(targetPath);
             return SqliteProcess(sf, targetPath);
         }
 
@@ -248,12 +214,12 @@ namespace EscudeTools
                 return false;
             if (sm == null)
                 return true;
-            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
+            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory.");
             if (string.IsNullOrEmpty(name))
                 return false;
             string targetPath = Path.Combine(storePath, "script_sm.db");
             if (!File.Exists(targetPath))
-                ExtractEmbeddedDatabase(targetPath);
+                Utils.ExtractEmbeddedDatabase(targetPath);
             return SqliteProcess(sm, targetPath);
         }
 
@@ -303,7 +269,6 @@ namespace EscudeTools
             return true;
         }
 
-
         private bool SqliteProcess(ScriptMessage sm, string path)
         {
             using SqliteConnection connection = new($"Data Source={path};");
@@ -339,38 +304,6 @@ namespace EscudeTools
 
             transaction.Commit();
             return true;
-        }
-
-
-        private static string GetSQLiteColumnType(ushort type)
-        {
-            return type switch
-            {
-                // int
-                0x1 => "INTEGER",
-                // float
-                0x2 => "REAL",
-                // string
-                0x3 => "TEXT",
-                // bool
-                0x4 => "INTEGER",
-                _ => throw new NotSupportedException($"Unsupported column type: {type}"),
-            };
-            throw new NotImplementedException();
-        }
-
-        private static string ReadStringFromTextData(byte[] sheet_text, int offset)
-        {
-            List<byte> stringBytes = [];
-            for (int i = offset; i < sheet_text.Length && sheet_text[i] != 0x00; i++)
-            {
-                stringBytes.Add(sheet_text[i]);
-            }
-            EncodingProvider provider = CodePagesEncodingProvider.Instance;
-            Encoding? shiftJis = provider.GetEncoding("shift-jis");
-            return shiftJis == null
-                ? throw new InvalidOperationException("Shift-JIS encoding not supported.")
-                : shiftJis.GetString(stringBytes.ToArray());
         }
     }
 }

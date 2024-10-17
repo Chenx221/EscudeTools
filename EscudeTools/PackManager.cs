@@ -1,5 +1,4 @@
-﻿//这里的代码参考(Ctrl+C, Ctrl+V)了Garbro中关于ESCUDE BIN封包的实现
-using System.Linq;
+﻿//这里的提取代码参考(Ctrl+C, Ctrl+V)了Garbro中关于ESCUDE BIN封包的实现
 using System.Text;
 
 namespace EscudeTools
@@ -164,7 +163,7 @@ namespace EscudeTools
             return true;
         }
 
-        public bool Repack(string path, int version) //目前支持v2
+        public bool Repack(string path, int version) //目前支持v2v1
         {
             GeneratePItem(path);
             m_seed = isLoaded ? LoadedKey : 2210579460;

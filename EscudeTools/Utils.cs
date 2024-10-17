@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Reflection;
+using System.Text;
 
 namespace EscudeTools
 {
@@ -46,6 +47,55 @@ namespace EscudeTools
         public static uint ToUInt32<TArray>(TArray value, int index) where TArray : IList<byte>
         {
             return (uint)(value[index] | value[index + 1] << 8 | value[index + 2] << 16 | value[index + 3] << 24);
+        }
+
+        public static uint ReadUInt32(BinaryReader reader)
+        {
+            byte[] bytes = reader.ReadBytes(4);
+            if (bytes.Length < 4)
+                throw new EndOfStreamException("Unexpected end of stream while reading UInt32.");
+            return BitConverter.ToUInt32(bytes, 0);
+        }
+
+        public static void ExtractEmbeddedDatabase(string outputPath)
+        {
+            if (File.Exists(outputPath))
+            {
+                Console.WriteLine($"File {outputPath} already exists. Do you want to overwrite it? (y/n)");
+                string? input = Console.ReadLine();
+                if (input?.ToLower() != "y")
+                {
+                    Console.WriteLine("Task cancelled, Exporting database aborted.");
+                    return;
+                }
+            }
+            var assembly = Assembly.GetExecutingAssembly();
+            string resourceName = "EscudeTools.empty.db";
+            using Stream stream = assembly.GetManifestResourceStream(resourceName) ?? throw new Exception($"Error, No resource with name {resourceName} found.");
+            using FileStream fileStream = new(outputPath, FileMode.Create, FileAccess.Write);
+            stream.CopyTo(fileStream);
+        }
+
+        public static string GetSQLiteColumnType(ushort type)
+        {
+            return type switch
+            {
+                // int
+                0x1 => "INTEGER",
+                // float
+                0x2 => "REAL",
+                // string
+                0x3 => "TEXT",
+                // bool
+                0x4 => "INTEGER",
+                _ => throw new NotSupportedException($"Unsupported column type: {type}"),
+            };
+            throw new NotImplementedException();
+        }
+
+        public static bool ISKANJI(byte x)
+        {
+            return (((x) ^ 0x20) - 0xa1) <= 0x3b;
         }
     }
 }

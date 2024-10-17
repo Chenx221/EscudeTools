@@ -1,8 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Reflection;
-using System.Reflection.Metadata;
 using System.Text;
-using System.Transactions;
 
 namespace EscudeTools
 {
@@ -139,63 +137,18 @@ namespace EscudeTools
             return sheet;
         }
 
-        public bool ExportDatabase(int outputType, string? storePath)
+        public bool ExportDatabase(string? storePath)
         {
             if (db.Length == 0)
                 return false;
             storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory."); //导出位置
-            switch (outputType)
-            {
-                case 0: //sqlite
-                    string targetFile = Path.Combine(storePath, dbName + ".db");
-                    ExtractEmbeddedDatabase(targetFile);
-                    return SqliteProcess(db, targetFile);
-                case 1: //csv
-                    foreach (var s in db)
-                    {
-                        bool status = CsvProcess(s, Path.Combine(storePath, dbName + "_" + s.name + ".csv"));
-                        if (!status)
-                        {
-                            throw new IOException($"Failed to export {s.name} CSV file.");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"{s.name} CSV file exported successfully.");
-                        }
-
-                    }
-                    return true;
-                default:
-                    throw new NotSupportedException("Unsupported output type.");
-            }
-        }
-
-        private static void ExtractEmbeddedDatabase(string outputPath)
-        {
-            if (File.Exists(outputPath))
-            {
-                Console.WriteLine($"File {outputPath} already exists. Do you want to overwrite it? (y/n)");
-                string? input = Console.ReadLine();
-                if (input?.ToLower() != "y")
-                {
-                    Console.WriteLine("Task cancelled, Exporting database aborted.");
-                    return;
-                }
-            }
-            var assembly = Assembly.GetExecutingAssembly();
-            //foreach (var rn in assembly.GetManifestResourceNames())
-            //{
-            //    Console.WriteLine(rn);
-            //}
-            string resourceName = "EscudeTools.empty.db";
-            using Stream stream = assembly.GetManifestResourceStream(resourceName) ?? throw new Exception($"Error, No resource with name {resourceName} found.");
-            using FileStream fileStream = new(outputPath, FileMode.Create, FileAccess.Write);
-            stream.CopyTo(fileStream);
+            string targetFile = Path.Combine(storePath, dbName + ".db");
+            Utils.ExtractEmbeddedDatabase(targetFile);
+            return SqliteProcess(db, targetFile);
         }
 
         private static bool SqliteProcess(Sheet[] db, string path)
         {
-            //db含有多个sheet，每个sheet中col存放标题（对应数据库中应该是字段），records存放数据（对应数据库中应该是记录）
             using SqliteConnection connection = new($"Data Source={path};");
             connection.Open();
             using var transaction = connection.BeginTransaction();
@@ -209,7 +162,7 @@ namespace EscudeTools
                     // Add columns to the create table query
                     foreach (var column in sheet.col)
                     {
-                        createTableQuery.Append($"{column.name} {GetSQLiteColumnType(column.type)}, ");
+                        createTableQuery.Append($"{column.name} {Utils.GetSQLiteColumnType(column.type)}, ");
                     }
 
                     createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
@@ -259,57 +212,6 @@ namespace EscudeTools
             }
             transaction.Commit();
             return true;
-        }
-        private static string GetSQLiteColumnType(ushort type)
-        {
-            return type switch
-            {
-                // int
-                0x1 => "INTEGER",
-                // float
-                0x2 => "REAL",
-                // string
-                0x3 => "TEXT",
-                // bool
-                0x4 => "INTEGER",
-                _ => throw new NotSupportedException($"Unsupported column type: {type}"),
-            };
-            throw new NotImplementedException();
-        }
-        private static bool CsvProcess(Sheet s, string path)
-        {
-            if (string.IsNullOrEmpty(path))
-                throw new ArgumentException("File path cannot be null or empty.", nameof(path));
-            StringBuilder csvContent = new();
-
-            foreach (Column column in s.col)
-            {
-                csvContent.Append(column.name);
-                csvContent.Append(',');
-            }
-            csvContent.AppendLine();
-
-            foreach (Record record in s.records.values.Cast<Record>())
-            {
-                foreach (object value in record.values)
-                {
-                    csvContent.Append(value);
-                    csvContent.Append(',');
-                }
-                csvContent.AppendLine();
-            }
-            try
-            {
-                File.WriteAllText(path, csvContent.ToString());
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to export CSV file: {ex.Message}");
-                return false;
-            }
-
-            throw new NotImplementedException();
         }
     }
 }
