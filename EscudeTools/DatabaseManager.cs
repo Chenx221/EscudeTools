@@ -1,6 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Reflection;
-using System.Reflection.PortableExecutable;
 using System.Text;
 
 namespace EscudeTools
@@ -51,6 +50,7 @@ namespace EscudeTools
                 byte[] nextBytes = br.ReadBytes(4);
                 if (nextBytes.Length < 4)
                     return false;
+                int order = 0;
                 while (!nextBytes.SequenceEqual(stopBytes))
                 {
                     uint sheet_struct_size = BitConverter.ToUInt32(nextBytes, 0);
@@ -61,7 +61,7 @@ namespace EscudeTools
                     nextBytes = br.ReadBytes(4);
                     uint sheet_text_size = BitConverter.ToUInt32(nextBytes, 0);
                     byte[] sheet_text = br.ReadBytes((int)sheet_text_size);
-                    Sheet sheet = ProcessSheet(sheet_struct, sheet_data, sheet_text, sheets.Count);
+                    Sheet sheet = ProcessSheet(sheet_struct, sheet_data, sheet_text, order++, sheets.Count);
                     sheets.Add(sheet);
                     nextBytes = br.ReadBytes(4);
                     if (nextBytes.Length < 4)
@@ -72,12 +72,12 @@ namespace EscudeTools
             return true;
         }
 
-        private static Sheet ProcessSheet(byte[] sheet_struct, byte[] sheet_data, byte[] sheet_text, int debugInfo1 = 0)
+        private static Sheet ProcessSheet(byte[] sheet_struct, byte[] sheet_data, byte[] sheet_text, int order, int debugInfo1 = 0)
         {
             Sheet sheet = new();
             //process struct
             uint nameOffset = BitConverter.ToUInt32(sheet_struct, 0);
-            sheet.name = Utils.ReadStringFromTextData(sheet_text, (int)nameOffset);
+            sheet.name = Utils.ReadStringFromTextData(sheet_text, (int)nameOffset) + $"_{order:D2}";//注意，末尾会添加_xx标记顺序
             sheet.cols = BitConverter.ToUInt32(sheet_struct, 4);
             sheet.col = new Column[sheet.cols];
             int offset = 8;
@@ -120,11 +120,12 @@ namespace EscudeTools
                     }
                     else
                     {
+                        string n = sheet.col[j].name;
                         if (sheet.col[j].size == 1)
                             record.values[j] = sheet_data[offset];
                         else if (sheet.col[j].size == 2)
                             record.values[j] = BitConverter.ToInt16(sheet_data, offset);
-                        else if (sheet.col[j].size == 4 && sheet.col[j].type == 1 && sheet.col[j].name == "色") //无奈
+                        else if (sheet.col[j].size == 4 && sheet.col[j].type == 1 && n[..^3] == "色") //无奈
                             record.values[j] = BitConverter.ToUInt32(sheet_data, offset);
                         else
                             record.values[j] = BitConverter.ToInt32(sheet_data, offset);
@@ -223,21 +224,28 @@ namespace EscudeTools
             connection.Open();
 
             var tableNames = new List<string>();
+            var orders = new List<int>();
             using (var command = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table';", connection))
             using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    tableNames.Add(reader.GetString(0));
+                    string s = reader.GetString(0);
+                    orders.Add(int.Parse(s[^2..]));
+                    tableNames.Add(s);
                 }
             }
+            var combined = tableNames
+                .Select((name, index) => new { Name = name, Order = orders[index] })
+                .OrderBy(x => x.Order)
+                .ToList();
+            tableNames = combined.Select(x => x.Name).ToList();
             string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), Path.GetFileNameWithoutExtension(sqlitePath) + ".bin");
             using FileStream fs = new(outputPath, FileMode.Create);
             using BinaryWriter bw = new(fs);
             bw.Write(fileSignature);//文件头
             EncodingProvider provider = CodePagesEncodingProvider.Instance;
             Encoding? shiftJis = provider.GetEncoding("shift-jis");
-            bool runOnce = true;
             foreach (var tableName in tableNames)
             {
                 uint colsNum = 0;
@@ -253,6 +261,7 @@ namespace EscudeTools
                 bw.Write(structSize);//结构体大小
                 uint textOffset = 1;
                 List<string> text = [];
+                List<string> textMulti = []; //允许重复字符串
                 ushort[] types = new ushort[colsNum];
                 ushort[] sizes = new ushort[colsNum];
                 string[] cnames = new string[colsNum];
@@ -290,7 +299,8 @@ namespace EscudeTools
                             continue;
                         }
                         string s = colReader.GetString(0);
-                        int index = text.IndexOf(s);
+                        int index = textMulti.IndexOf(s);//fix bug
+                        textMulti.Add(s);
                         if (string.IsNullOrEmpty(s))// empty
                         {
                             textOffset1.Add(0);
@@ -299,7 +309,7 @@ namespace EscudeTools
                         {
                             text.Add(s);
                             textOffset1.Add(textOffset); // 记录偏移量
-                            textOffset += (uint)shiftJis.GetBytes(s).Length + 1;
+                            textOffset += (uint)(shiftJis.GetBytes(s).Length + 1);
                         }
                         else
                         {
@@ -307,9 +317,9 @@ namespace EscudeTools
                         }
                     }
                 }
-                text.Add(tableName);
+                text.Add(tableName[..^3]);
                 textOffset1.Add(textOffset);
-                textOffset += (uint)shiftJis.GetBytes(tableName).Length + 1;
+                textOffset += (uint)shiftJis.GetBytes(tableName[..^3]).Length + 1;
                 foreach (string c in cnames)
                 {
                     text.Add(c[..^3]);
@@ -344,15 +354,18 @@ namespace EscudeTools
                             first = false;
                             continue;
                         }
+                        int j = 0;
                         for (int i = 0; i < colsNum; i++)
                         {
                             int type = types[i];
                             int size = sizes[i];
                             string cname = cnames[i][..^3];
                             if (type == 4)
-                                bw.Write(textOffset1[index + (recordCount-1) * i]);//fix bug
+                            {
+                                bw.Write(textOffset1[index + (recordCount - 1) * j++]);//fix bug
+                            }
                             else if (cname == "色" && size == 4)
-                                bw.Write((ulong)reader.GetInt64(i));
+                                bw.Write((uint)reader.GetInt64(i));
                             else if (size == 1)
                                 bw.Write(reader.GetByte(i));
                             else if (size == 2)
