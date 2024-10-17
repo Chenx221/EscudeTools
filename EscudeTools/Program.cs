@@ -114,7 +114,8 @@
             //    foreach (string file in files)
             //    {
             //        dm.LoadDatabase(file);
-
+            //        if (dm.ExportDatabase(Path.GetDirectoryName(args[0])))
+            //            Console.WriteLine("Export Database Success");
             //    }
 
             //}

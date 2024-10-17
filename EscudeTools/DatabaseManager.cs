@@ -95,9 +95,14 @@ namespace EscudeTools
                 sheet.col[i] = column;
                 offset += 8;
             }
+            uint columnSizes = 0;
+            for(int i = 0; i < sheet.cols; i++)
+            {
+                columnSizes += sheet.col[i].size;
+            }
             //process data
             offset = 0;
-            int recordNum = (int)(sheet_data.Length / (4 * sheet.cols));
+            int recordNum = (int)(sheet_data.Length / (columnSizes));//fix bug
             Record recordFather = new(recordNum);
             for (int i = 0; i < recordNum; i++)
             {
