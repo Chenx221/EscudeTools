@@ -97,5 +97,30 @@ namespace EscudeTools
         {
             return (((x) ^ 0x20) - 0xa1) <= 0x3b;
         }
+
+        public static ushort GetColumnTypeFromSQLite(string v)
+        {
+            return v[^2] switch
+            {
+                '1' => 0x1,
+                '2' => 0x2,
+                '3' => 0x3,
+                '4' => 0x4,
+                _ => throw new NotSupportedException($"Unsupported column type: {v}"),
+            };
+
+        }
+
+        public static ushort GetColumnSize(string v)
+        {
+            return v[^1] switch
+            {
+                '1' => 0x1,
+                '2' => 0x2,
+                '3' => 0x3,
+                '4' => 0x4,
+                _ => throw new NotSupportedException($"Unsupported column Size: {v}"),
+            };
+        }
     }
 }

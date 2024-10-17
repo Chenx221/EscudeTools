@@ -2,7 +2,7 @@
   "profiles": {
     "EscudeTools": {
       "commandName": "Project",
-      "commandLineArgs": "G:\\x221.local\\lab\\1\r\nG:\\x221.local\\lab\\1\\output\\data"
+      "commandLineArgs": "G:\\x221.local\\lab\\sqlite"
     }
   }
 }

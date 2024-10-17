@@ -1,5 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Reflection;
+using System.Reflection.PortableExecutable;
 using System.Text;
 
 namespace EscudeTools
@@ -90,7 +91,7 @@ namespace EscudeTools
                     throw new NotSupportedException("Unsupported Format"); //暂时不受支持的0x2 0x3
                 column.size = BitConverter.ToUInt16(sheet_struct, offset + 2);
                 uint columnNameOffset = BitConverter.ToUInt32(sheet_struct, offset + 4);
-                column.name = Utils.ReadStringFromTextData(sheet_text, (int)columnNameOffset);
+                column.name = Utils.ReadStringFromTextData(sheet_text, (int)columnNameOffset) + $"_{column.type}{column.size}"; //给repack留条活路
                 sheet.col[i] = column;
                 offset += 8;
             }
@@ -211,6 +212,166 @@ namespace EscudeTools
                 }
             }
             transaction.Commit();
+            return true;
+        }
+
+        public static bool ExportMDB(string sqlitePath)
+        {
+            if (!File.Exists(sqlitePath))
+                return false;
+            using SqliteConnection connection = new($"Data Source={sqlitePath};");
+            connection.Open();
+
+            var tableNames = new List<string>();
+            using (var command = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table';", connection))
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    tableNames.Add(reader.GetString(0));
+                }
+            }
+            string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), Path.GetFileNameWithoutExtension(sqlitePath) + ".bin");
+            using FileStream fs = new(outputPath, FileMode.Create);
+            using BinaryWriter bw = new(fs);
+            bw.Write(fileSignature);//文件头
+            EncodingProvider provider = CodePagesEncodingProvider.Instance;
+            Encoding? shiftJis = provider.GetEncoding("shift-jis");
+            bool runOnce = true;
+            foreach (var tableName in tableNames)
+            {
+                uint colsNum = 0;
+                using (var command = new SqliteCommand($"PRAGMA table_info({tableName});", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        colsNum++;
+                    }
+                }
+                uint structSize = 8 + 8 * colsNum;
+                bw.Write(structSize);//结构体大小
+                uint textOffset = 1;
+                List<string> text = [];
+                ushort[] types = new ushort[colsNum];
+                ushort[] sizes = new ushort[colsNum];
+                string[] cnames = new string[colsNum];
+                using (var command = new SqliteCommand($"PRAGMA table_info({tableName});", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        types[reader.GetInt32(0)] = Utils.GetColumnTypeFromSQLite(reader.GetString(1));
+                        sizes[reader.GetInt32(0)] = Utils.GetColumnSize(reader.GetString(1));
+                        cnames[reader.GetInt32(0)] = reader.GetString(1);
+                    }
+                }
+                int recordCount = 0;
+                using (var command = new SqliteCommand($"SELECT COUNT(*) FROM {tableName};", connection))
+                {
+                    recordCount = Convert.ToInt32(command.ExecuteScalar());
+                }
+                uint dataSize = 4 * colsNum * (uint)recordCount;
+
+
+                List<uint> textOffset1 = [];
+                for (int i = 0; i < cnames.Length; i++)
+                {
+                    if (types[i] != 4)
+                        continue;
+                    using var colCommand = new SqliteCommand($"SELECT {cnames[i]} FROM {tableName};", connection);
+                    using var colReader = colCommand.ExecuteReader();
+                    bool first = true;
+                    while (colReader.Read())
+                    {
+                        if (first)
+                        {
+                            first = false;
+                            continue;
+                        }
+                        string s = colReader.GetString(0);
+                        int index = text.IndexOf(s);
+                        if (string.IsNullOrEmpty(s))// empty
+                        {
+                            textOffset1.Add(0);
+                        }
+                        else if (index == -1) // 如果字符串不存在
+                        {
+                            text.Add(s);
+                            textOffset1.Add(textOffset); // 记录偏移量
+                            textOffset += (uint)shiftJis.GetBytes(s).Length + 1;
+                        }
+                        else
+                        {
+                            textOffset1.Add(textOffset1[index]); // 重复字符串处理
+                        }
+                    }
+                }
+                text.Add(tableName);
+                textOffset1.Add(textOffset);
+                textOffset += (uint)shiftJis.GetBytes(tableName).Length + 1;
+                foreach (string c in cnames)
+                {
+                    text.Add(c[..^3]);
+                    textOffset1.Add(textOffset);
+                    textOffset += (uint)shiftJis.GetBytes(c[..^3]).Length + 1;
+                }
+                //
+                bw.Write(textOffset1[textOffset1.Count - cnames.Length - 1]); //表名在text中的偏移
+                bw.Write(colsNum);//列数
+                for (int i = 0; i < colsNum; i++)
+                {
+                    bw.Write(types[i]);//类型
+                    bw.Write(sizes[i]);//类型大小
+                    bw.Write(textOffset1[textOffset1.Count - cnames.Length + i]); //列名在text中的偏移
+                }
+                bw.Write(dataSize);//数据大小
+                //填充垃圾
+                for (int i = 0; i < colsNum; i++)
+                {
+                    bw.Write((uint)0);
+                }
+                //填充数据
+                using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    int index = 0;
+                    bool first = true;
+                    while (reader.Read())
+                    {
+                        if (first)
+                        {
+                            first = false;
+                            continue;
+                        }
+                        for (int i = 0; i < colsNum; i++)
+                        {
+                            int type = types[i];
+                            int size = sizes[i];
+                            string cname = cnames[i][..^3];
+                            if (type == 4)
+                                bw.Write(textOffset1[index + (recordCount-1) * i]);//fix bug
+                            else if (cname == "色" && size == 4)
+                                bw.Write((ulong)reader.GetInt64(i));
+                            else if (size == 1)
+                                bw.Write(reader.GetByte(i));
+                            else if (size == 2)
+                                bw.Write((ushort)(reader.GetInt16(i)));
+                            else
+                                bw.Write(reader.GetInt32(i));
+                        }
+                        index++;
+                    }
+                }
+                bw.Write(textOffset);//文本大小
+                bw.Write((byte)0);//垃圾
+                foreach (var str in text)//文本
+                {
+                    bw.Write(shiftJis.GetBytes(str));
+                    bw.Write((byte)0);
+                }
+            }
+            bw.Write(stopBytes);
             return true;
         }
     }
