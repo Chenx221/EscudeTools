@@ -280,8 +280,9 @@ namespace EscudeTools
                 {
                     recordCount = Convert.ToInt32(command.ExecuteScalar());
                 }
-                uint dataSize = 4 * colsNum * (uint)recordCount;
 
+                //uint dataSize = 4 * colsNum * (uint)recordCount;
+                uint dataSize = (uint)(sizes.Sum(x => (uint)x) * recordCount);
 
                 List<uint> textOffset1 = [];
                 for (int i = 0; i < cnames.Length; i++)
@@ -337,10 +338,8 @@ namespace EscudeTools
                 }
                 bw.Write(dataSize);//数据大小
                 //填充垃圾
-                for (int i = 0; i < colsNum; i++)
-                {
-                    bw.Write((uint)0);
-                }
+                byte[] zeroBytes = new byte[sizes.Sum(x => (uint)x)];
+                bw.Write(zeroBytes);
                 //填充数据
                 using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
                 using (var reader = command.ExecuteReader())
