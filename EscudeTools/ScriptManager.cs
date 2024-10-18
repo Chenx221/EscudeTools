@@ -1,6 +1,10 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.ComponentModel;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Text;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EscudeTools
 {
@@ -34,7 +38,7 @@ namespace EscudeTools
         public byte Instruction { get; set; }
         public string InstructionString { get; set; }
         public byte[] Parameter { get; set; }
-        public String Helper { get; set; }
+        public string Helper { get; set; }
         public bool IsProcSet { get; set; }
     }
 
@@ -105,7 +109,7 @@ namespace EscudeTools
                 c.InstructionString = Define.GetInstructionString(c.Instruction, out int paramNum);
                 if (paramNum > 0)
                 {
-                    c.Parameter = new byte[paramNum*4];
+                    c.Parameter = new byte[paramNum * 4];
                     Buffer.BlockCopy(sf.Code, i, c.Parameter, 0, 4 * paramNum);
                     i += 4 * paramNum;
                 }
@@ -257,7 +261,7 @@ namespace EscudeTools
             using (var checkTableCmd = new SqliteCommand(checkTableExistsQuery, connection))
             {
                 var result = checkTableCmd.ExecuteScalar();
-                if (result != null) return true;
+                if (result != null) return false;
             }
 
             string createTableQuery = $@"
@@ -271,6 +275,25 @@ namespace EscudeTools
             using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
             {
                 createTableCmd.ExecuteNonQuery();
+            }
+
+            string checkTextTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}__text';";
+            using (var checkTextTableCmd = new SqliteCommand(checkTextTableExistsQuery, connection))
+            {
+                var result = checkTextTableCmd.ExecuteScalar();
+                if (result == null)
+                {
+                    string createTextTableQuery = $@"
+            CREATE TABLE {name}__text (
+                Text TEXT
+            );";
+                    using (var createTextTableCmd = new SqliteCommand(createTextTableQuery, connection))
+                    {
+                        createTextTableCmd.ExecuteNonQuery();
+                    }
+                }
+                else
+                    return false;
             }
 
             string insertQuery = $"INSERT INTO {name} (Offset, Instruction, InstructionString, Parameter, Helper) VALUES (@Offset, @Instruction, @InstructionString, @Parameter, @Helper);";
@@ -289,6 +312,17 @@ namespace EscudeTools
         : command.Parameter);
                 insertCmd.Parameters.AddWithValue("@Helper", command.Helper ?? "");
 
+                insertCmd.ExecuteNonQuery();
+            }
+
+            string insertQuerySub = $"INSERT INTO {name}__text (Text) VALUES (@Text);";
+
+            using var insertCmdSub = new SqliteCommand(insertQuerySub, connection, transaction);
+
+            foreach (string ts in sf.TextString)
+            {
+                insertCmd.Parameters.Clear();
+                insertCmd.Parameters.AddWithValue("@Text", ts ?? "");
                 insertCmd.ExecuteNonQuery();
             }
 
@@ -333,7 +367,7 @@ namespace EscudeTools
             return true;
         }
 
-        private bool SqliteProcess(string[] ts,string path)
+        private bool SqliteProcess(string[] ts, string path)
         {
             using SqliteConnection connection = new($"Data Source={path};");
             connection.Open();
@@ -370,19 +404,352 @@ namespace EscudeTools
             return true;
         }
 
-        public bool Repackv1()
+        public static bool Repackv1(string sqlitePath, bool scramble = true)
         {
-            throw new NotImplementedException();
+            if (!File.Exists(sqlitePath))
+                return false;
+            using SqliteConnection connection = new($"Data Source={sqlitePath};");
+            connection.Open();
+
+            var tableNames = new List<string>();
+            using (var command = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table';", connection))
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    if (!reader.GetString(0).EndsWith("__text"))
+                    {
+                        tableNames.Add(reader.GetString(0));
+                    }
+                }
+            }
+            EncodingProvider provider = CodePagesEncodingProvider.Instance;
+            Encoding? shiftJis = provider.GetEncoding("shift-jis");
+            foreach (var tableName in tableNames)
+            {
+                string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".bin");
+                using FileStream fs = new(outputPath, FileMode.Create);
+                using BinaryWriter bw = new(fs);
+                ScriptFile sf = new()
+                {
+                    CodeSize = 0,
+                    TextCount = 0,
+                    TextSize = 0,
+                    MessCount = 0,
+                };
+                uint Offset = 0;
+                List<uint> messOffset = new();
+                List<string> messString = new();
+                bool flag = false; // need .001?
+                using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        Command c = new()
+                        {
+                            Instruction = reader.GetByte(1),
+                            Parameter = reader.IsDBNull(3) ? [] : (byte[])reader[3]
+                        };
+                        sf.Commands.Add(c);
+                        sf.CodeSize += 1 + (reader.IsDBNull(3) ? 0 : (uint)((byte[])reader[3]).Length);
+                        if (c.Instruction == 41) //INST_TEXT //此方法未必可靠
+                        {
+                            flag = true;
+                            string s = reader.GetString(4);
+                            messString.Add(s);
+                            messOffset.Add(Offset);
+                            Offset += (uint)(shiftJis.GetBytes(s).Length + 1);
+                            sf.MessCount++;
+                        }
+                    }
+                }
+                List<string> textString = new();
+                List<uint> textOffset = new();
+                using (var command = new SqliteCommand($"SELECT * FROM {tableName}__text;", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string s = reader.GetString(0);
+                        sf.TextCount++;
+                        textString.Add(s);
+                        textOffset.Add(sf.TextSize);
+                        sf.TextSize += (uint)(shiftJis.GetBytes(s).Length + 1);
+                    }
+                }
+                //准备写入
+                bw.Write(FileHeader);//文件头
+                bw.Write(sf.CodeSize);//代码区大小
+                bw.Write(sf.TextCount);//文本数量
+                bw.Write(sf.TextSize);//文本大小
+                bw.Write(sf.MessCount);//消息数量
+                foreach (Command c in sf.Commands)//写入代码区
+                {
+                    bw.Write(c.Instruction);
+                    if (c.Parameter.Length > 0)
+                        bw.Write(c.Parameter);
+                }
+                foreach (uint to in textOffset)//写入文本区偏移
+                {
+                    bw.Write(to);
+                }
+                foreach (string ts in textString)//写入文本区
+                {
+                    bw.Write(shiftJis.GetBytes(ts));
+                    bw.Write((byte)0);
+                }
+
+                //再看看.001
+                if (flag)
+                {
+                    string outputPath2 = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".001");
+                    using FileStream fs2 = new(outputPath2, FileMode.Create);
+                    using BinaryWriter bw2 = new(fs2);
+                    if (scramble)
+                    {
+                        bw2.Write(MessHeader);//文件头
+                        bw2.Write(sf.MessCount);//消息数量
+                        bw2.Write(Offset);//消息大小
+                        foreach (uint mo in messOffset)//写入消息区偏移
+                        {
+                            bw2.Write(mo);
+                        }
+                        byte[] rawData = new byte[Offset];
+                        int index = 0;
+                        foreach (string ms in messString)
+                        {
+                            byte[] data = shiftJis.GetBytes(ms);
+                            Buffer.BlockCopy(data, 0, rawData, index, data.Length);
+                            index += data.Length;
+                            rawData[index++] = 0;
+                        }
+                        for (int i = 0; i < rawData.Length; i++)
+                        {
+                            rawData[i] ^= 0x55;
+                        }
+                        bw2.Write(rawData);//写入加密的消息区
+
+                    }
+                    else //ps.这是无加密情况下的处理代码，下面这块是gpt照着读取写的，出bug我不背锅
+                    {
+                        ScriptMessage sm = new()
+                        {
+                            Data = new byte[Offset],
+                            Size = Offset,
+                            Offset = messOffset,
+                            Count = sf.MessCount
+                        };
+                        int index = 0;
+                        foreach (string ms in messString)
+                        {
+                            byte[] data = shiftJis.GetBytes(ms);
+                            Buffer.BlockCopy(data, 0, sm.Data, index, data.Length);
+                            index += data.Length;
+                            sm.Data[index++] = 0;
+                        }
+                        List<byte> reconstructedData = [];
+                        uint currentPosition = 0;
+                        for (int i = 0; i < sm.Count; i++)
+                        {
+                            uint offset = sm.Offset[i];
+                            while (currentPosition < sm.Size && sm.Data[currentPosition] != 0)
+                            {
+                                if (Utils.ISKANJI(sm.Data[currentPosition]))
+                                {
+                                    reconstructedData.Add(sm.Data[currentPosition]);
+                                    currentPosition++;
+                                    continue; // Skip the next byte since it is part of the Kanji character
+                                }
+                                reconstructedData.Add(sm.Data[currentPosition]);
+                                currentPosition++;
+                            }
+                            reconstructedData.Add((byte)'\n');
+                            currentPosition++; // Skip the null terminator
+                        }
+                        while (currentPosition < sm.Size)
+                        {
+                            if (sm.Data[currentPosition] != 0)
+                            {
+                                reconstructedData.Add(sm.Data[currentPosition]);
+                            }
+                            currentPosition++;
+                        }
+                        byte[] finalData = [.. reconstructedData];
+                        bw2.Write(finalData);//写入整个数据
+                    }
+                }
+            }
+            return true;
         }
 
-        public bool Repackv2()
+        public static bool Repackv2(string sqlitePath, bool scramble = true)
         {
-            throw new NotImplementedException();
+            if (!File.Exists(sqlitePath))
+                return false;
+            using SqliteConnection connection = new($"Data Source={sqlitePath};");
+            connection.Open();
+
+            var tableNames = new List<string>();
+            using (var command = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table';", connection))
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    tableNames.Add(reader.GetString(0));
+                }
+            }
+            EncodingProvider provider = CodePagesEncodingProvider.Instance;
+            Encoding? shiftJis = provider.GetEncoding("shift-jis");
+            foreach (var tableName in tableNames)
+            {
+                string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".001");
+                using FileStream fs = new(outputPath, FileMode.Create);
+                using BinaryWriter bw = new(fs);
+                ScriptMessage sm = new()
+                {
+                    Count = 0,
+                    Size = 0
+                };
+                List<uint> messOffset = new();
+                List<string> messString = new();
+                using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string s = reader.GetString(0);
+                        messString.Add(s);
+                        messOffset.Add(sm.Size);
+                        sm.Size += (uint)(shiftJis.GetBytes(s).Length + 1);
+                        sm.Count++;
+                    }
+                }
+                if (scramble) //mess部分好像有不少重复代码，以后有空再优化
+                {
+                    bw.Write(MessHeader);//文件头
+                    bw.Write(sm.Count);//消息数量
+                    bw.Write(sm.Size);//消息大小
+                    foreach (uint mo in messOffset)//写入消息区偏移
+                    {
+                        bw.Write(mo);
+                    }
+                    byte[] rawData = new byte[sm.Size];
+                    int index = 0;
+                    foreach (string ms in messString)
+                    {
+                        byte[] data = shiftJis.GetBytes(ms);
+                        Buffer.BlockCopy(data, 0, rawData, index, data.Length);
+                        index += data.Length;
+                        rawData[index++] = 0;
+                    }
+                    for (int i = 0; i < rawData.Length; i++)
+                    {
+                        rawData[i] ^= 0x55;
+                    }
+                    bw.Write(rawData);//写入加密的消息区
+
+                }
+                else //ps.这是无加密情况下的处理代码，下面这块是gpt照着读取写的，出bug我不背锅
+                {
+                    int index = 0;
+                    foreach (string ms in messString)
+                    {
+                        byte[] data = shiftJis.GetBytes(ms);
+                        Buffer.BlockCopy(data, 0, sm.Data, index, data.Length);
+                        index += data.Length;
+                        sm.Data[index++] = 0;
+                    }
+                    List<byte> reconstructedData = [];
+                    uint currentPosition = 0;
+                    for (int i = 0; i < sm.Count; i++)
+                    {
+                        uint offset = sm.Offset[i];
+                        while (currentPosition < sm.Size && sm.Data[currentPosition] != 0)
+                        {
+                            if (Utils.ISKANJI(sm.Data[currentPosition]))
+                            {
+                                reconstructedData.Add(sm.Data[currentPosition]);
+                                currentPosition++;
+                                continue; // Skip the next byte since it is part of the Kanji character
+                            }
+                            reconstructedData.Add(sm.Data[currentPosition]);
+                            currentPosition++;
+                        }
+                        reconstructedData.Add((byte)'\n');
+                        currentPosition++; // Skip the null terminator
+                    }
+                    while (currentPosition < sm.Size)
+                    {
+                        if (sm.Data[currentPosition] != 0)
+                        {
+                            reconstructedData.Add(sm.Data[currentPosition]);
+                        }
+                        currentPosition++;
+                    }
+                    byte[] finalData = [.. reconstructedData];
+                    bw.Write(finalData);//写入整个数据
+                }
+            }
+            return true;
         }
 
-        public bool Repackv3()
+        public static bool Repackv3(string sqlitePath, bool scramble = true)
         {
-            throw new NotImplementedException();
+            if (!File.Exists(sqlitePath))
+                return false;
+            using SqliteConnection connection = new($"Data Source={sqlitePath};");
+            connection.Open();
+
+            var tableNames = new List<string>();
+            using (var command = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table';", connection))
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    tableNames.Add(reader.GetString(0));
+                }
+            }
+            EncodingProvider provider = CodePagesEncodingProvider.Instance;
+            Encoding? shiftJis = provider.GetEncoding("shift-jis");
+            foreach (var tableName in tableNames)
+            {
+                string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".bin");
+                using FileStream fs = new(outputPath, FileMode.Create);
+                using BinaryWriter bw = new(fs);
+
+                string trunkPath = Path.Combine(Path.GetDirectoryName(sqlitePath), tableName + ".dat");
+                byte[] bytes = File.ReadAllBytes(trunkPath);
+                uint textSizeOffset = 0x10;
+                List<uint> textOffset = new();
+                List<string> textString = new();
+                uint Offset = 0;
+                using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string s = reader.GetString(0);
+                        textString.Add(s);
+                        textOffset.Add(Offset);
+                        Offset += (uint)(shiftJis.GetBytes(s).Length + 1);
+                    }
+                }
+                Buffer.BlockCopy(BitConverter.GetBytes(Offset), 0, bytes, (int)textSizeOffset, 4);
+                //准备写入
+                bw.Write(bytes);//写入整个数据
+                foreach (uint to in textOffset)//写入文本区偏移
+                {
+                    bw.Write(to);
+                }
+                foreach (string ts in textString)
+                {
+                    bw.Write(shiftJis.GetBytes(ts));
+                    bw.Write((byte)0);
+                }
+
+            }
+            return true;
         }
     }
 }
