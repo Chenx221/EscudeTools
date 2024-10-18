@@ -52,45 +52,64 @@
             //}
 
 
-            //Batch Unpack Script(Full, Text, Mess)
-            if (Directory.Exists(args[0]))
-            {
-                string[] files = Directory.GetFiles(args[0], "*.bin");
-                foreach (string file in files)
-                {
-                    ScriptManager smr = new();
-                    if (smr.LoadScriptFile(file))
-                    {
-                        Console.WriteLine($"Load {file} Success");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Load {file} Failed");
-                        return;
-                    }
-                    if (smr.ExportDatabase(Path.GetDirectoryName(args[0])))
-                        Console.WriteLine("Export Script Success");
-                    else
-                    {
-                        Console.WriteLine("Export Script Failed");
-                        return;
-                    }
-                    if (smr.ExportTextDatabase(Path.GetDirectoryName(args[0])))
-                        Console.WriteLine("Export Text Success");
-                    else
-                    {
-                        Console.WriteLine("Export Text Failed");
-                        return;
-                    }
-                    if (smr.ExportMessDatabase(Path.GetDirectoryName(args[0])))
-                        Console.WriteLine("Export Mess Success");
-                    else
-                    {
-                        Console.WriteLine("Export Mess Failed");
-                        return;
-                    }
-                }
-            }
+            ////Batch Unpack Script(Full, Text, Mess)
+            //if (Directory.Exists(args[0]))
+            //{
+            //    string[] files = Directory.GetFiles(args[0], "*.bin");
+            //    foreach (string file in files)
+            //    {
+            //        ScriptManager smr = new();
+            //        if (smr.LoadScriptFile(file))
+            //        {
+            //            Console.WriteLine($"Load {file} Success");
+            //        }
+            //        else
+            //        {
+            //            Console.WriteLine($"Load {file} Failed");
+            //            return;
+            //        }
+            //        if (smr.ExportDatabase(Path.GetDirectoryName(args[0])))
+            //            Console.WriteLine("Export Script Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Export Script Failed");
+            //            return;
+            //        }
+            //        if (smr.ExportTextDatabase(Path.GetDirectoryName(args[0])))
+            //            Console.WriteLine("Export Text Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Export Text Failed");
+            //            return;
+            //        }
+            //        if (smr.ExportMessDatabase(Path.GetDirectoryName(args[0])))
+            //            Console.WriteLine("Export Mess Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Export Mess Failed");
+            //            return;
+            //        }
+            //    }
+            //}
+
+            ////Export Script Type 1
+            //if (File.Exists(args[0])) //fail //lost 1 //something diff
+            //{
+            //    ScriptManager.Repackv1(args[0], true);
+            //}
+
+            ////Export Script Type 2
+            //if (File.Exists(args[0])) //pass
+            //{
+            //    ScriptManager.Repackv2(args[0], true);
+            //}
+
+            ////Export Script Type 3
+            //if (File.Exists(args[0])) //pass
+            //{
+            //    ScriptManager.Repackv3(args[0]);
+            //}
+
 
 
             //ScriptManager smr = new();

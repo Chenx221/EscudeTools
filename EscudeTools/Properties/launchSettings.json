@@ -2,7 +2,7 @@
   "profiles": {
     "EscudeTools": {
       "commandName": "Project",
-      "commandLineArgs": "G:\\x221.local\\lab\\test1\\script"
+      "commandLineArgs": "\"G:\\x221.local\\lab\\test1\\type3\\script_text.db\""
     }
   }
 }

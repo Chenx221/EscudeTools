@@ -321,9 +321,9 @@ namespace EscudeTools
 
             foreach (string ts in sf.TextString)
             {
-                insertCmd.Parameters.Clear();
-                insertCmd.Parameters.AddWithValue("@Text", ts ?? "");
-                insertCmd.ExecuteNonQuery();
+                insertCmdSub.Parameters.Clear();
+                insertCmdSub.Parameters.AddWithValue("@Text", ts ?? "");
+                insertCmdSub.ExecuteNonQuery();
             }
 
             transaction.Commit();
@@ -427,6 +427,9 @@ namespace EscudeTools
             Encoding? shiftJis = provider.GetEncoding("shift-jis");
             foreach (var tableName in tableNames)
             {
+                string folder = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack");
+                if (!Directory.Exists(folder))
+                    Directory.CreateDirectory(folder);
                 string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".bin");
                 using FileStream fs = new(outputPath, FileMode.Create);
                 using BinaryWriter bw = new(fs);
@@ -436,6 +439,7 @@ namespace EscudeTools
                     TextCount = 0,
                     TextSize = 0,
                     MessCount = 0,
+                    Commands = []
                 };
                 uint Offset = 0;
                 List<uint> messOffset = new();
@@ -603,6 +607,9 @@ namespace EscudeTools
             Encoding? shiftJis = provider.GetEncoding("shift-jis");
             foreach (var tableName in tableNames)
             {
+                string folder = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack");
+                if (!Directory.Exists(folder))
+                    Directory.CreateDirectory(folder);
                 string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".001");
                 using FileStream fs = new(outputPath, FileMode.Create);
                 using BinaryWriter bw = new(fs);
@@ -694,7 +701,7 @@ namespace EscudeTools
             return true;
         }
 
-        public static bool Repackv3(string sqlitePath, bool scramble = true)
+        public static bool Repackv3(string sqlitePath)
         {
             if (!File.Exists(sqlitePath))
                 return false;
@@ -714,6 +721,9 @@ namespace EscudeTools
             Encoding? shiftJis = provider.GetEncoding("shift-jis");
             foreach (var tableName in tableNames)
             {
+                string folder = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack");
+                if (!Directory.Exists(folder))
+                    Directory.CreateDirectory(folder);
                 string outputPath = Path.Combine(Path.GetDirectoryName(sqlitePath), "repack", tableName + ".bin");
                 using FileStream fs = new(outputPath, FileMode.Create);
                 using BinaryWriter bw = new(fs);
