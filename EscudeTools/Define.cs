@@ -1,4 +1,4 @@
-﻿//以下是垃圾代码，仅供参考
+﻿//以下是垃圾代码，闲人勿入
 namespace EscudeTools
 {
     public static class Define
@@ -19,7 +19,7 @@ namespace EscudeTools
                 "proc_bgv_fx", "proc_set_param", "proc_get_param", "proc_jump", "proc_date", "proc_flow", "proc_diary",
                 "proc_unlock", "proc_section", "proc_omake"
             ];
-
+        // 说句实话，我觉得这些定义可能会发生变化
         public const byte INST_POP = 1;
         public const byte INST_POP_N = 2;
         public const byte INST_POP_RET = 3;
@@ -148,10 +148,10 @@ namespace EscudeTools
                         Mark(sf, 1);
                         return "Pop a value";
                     }
-                    
+
                 case INST_POP_N:
                     {
-                        Mark(sf, (uint)c.Parameter);
+                        Mark(sf, BitConverter.ToUInt32(c.Parameter));
                         return $"Pop multiple values";
                     }
                 case INST_POP_RET:
@@ -163,7 +163,7 @@ namespace EscudeTools
                 case INST_PUSH_RET:
                     return $"Push the return value";
                 case INST_PUSH_TEXT:
-                    return $"Push a string: {sf.TextString[(uint)c.Parameter]}";
+                    return $"Push a string: {sf.TextString[BitConverter.ToUInt32(c.Parameter)]}";
                 case INST_PUSH_MESS:
                     {
                         messIndex++;
@@ -186,7 +186,7 @@ namespace EscudeTools
                 case INST_JMPZ:
                     return $"Conditional jump";
                 case INST_CALL:
-                    return $"Call function offset: {(uint)c.Parameter + 1}";
+                    return $"Call function offset: {BitConverter.ToUInt32(c.Parameter) + 1}";
                 case INST_RET:
                     return $"Return";
                 case INST_LOG_OR:
@@ -240,7 +240,7 @@ namespace EscudeTools
                 case INST_LINE:
                     return $"File line number";
                 case INST_PROC:
-                    uint index = (uint)c.Parameter;
+                    uint index = BitConverter.ToUInt32(c.Parameter);
                     return $"Execute built-in function: {ProcNames[index]} {SetExtStr(c, sf)}";
                 case INST_TEXT:
                     messIndex++;
@@ -264,7 +264,7 @@ namespace EscudeTools
 
         private static string SetExtStr(Command c, ScriptFile sf)
         {
-            switch ((uint)c.Parameter)
+            switch (BitConverter.ToUInt32(c.Parameter))
             {
                 case 0:
                     {

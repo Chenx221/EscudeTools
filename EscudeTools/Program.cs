@@ -4,8 +4,11 @@
     {
         static void Main(string[] args)
         {
+            // NOTE
+            // 推荐使用DB Browser for SQLite (https://sqlitebrowser.org/) 查看、编辑导出的数据库文件
+            // 这不是广告，这只是我在开发期间使用的工具
 
-            ////Batch Unpack
+            ////Batch Unpack ESC-ARC Package
             //if (Directory.Exists(args[0]))
             //{
             //    string[] files = Directory.GetFiles(args[0], "*.bin");
@@ -30,62 +33,64 @@
             //    }
             //}
 
-            if (Directory.Exists(args[0]) && Directory.Exists(args[1]))
+            ////Batch Repack ESC-ARC Package
+            //if (Directory.Exists(args[0]) && Directory.Exists(args[1]))
+            //{
+            //    string[] directories = Directory.GetDirectories(args[0]);
+            //    foreach (string directory in directories)
+            //    {
+            //        PackManager pm = new();
+            //        string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
+            //        if (pm.Repack(directory, 2,true, providerFilePath))
+            //            Console.WriteLine("Repack Package Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Repack Package Failed");
+            //            return;
+            //        }
+            //    }
+            //}
+
+
+            //Batch Unpack Script(Full, Text, Mess)
+            if (Directory.Exists(args[0]))
             {
-                string[] directories = Directory.GetDirectories(args[0]);
-                foreach (string directory in directories)
+                string[] files = Directory.GetFiles(args[0], "*.bin");
+                foreach (string file in files)
                 {
-                    PackManager pm = new();
-                    string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
-                    if (pm.Repack(directory, 2,true, providerFilePath))
-                        Console.WriteLine("Export Database Success");
+                    ScriptManager smr = new();
+                    if (smr.LoadScriptFile(file))
+                    {
+                        Console.WriteLine($"Load {file} Success");
+                    }
                     else
                     {
-                        Console.WriteLine("Export Database Failed");
+                        Console.WriteLine($"Load {file} Failed");
+                        return;
+                    }
+                    if (smr.ExportDatabase(Path.GetDirectoryName(args[0])))
+                        Console.WriteLine("Export Script Success");
+                    else
+                    {
+                        Console.WriteLine("Export Script Failed");
+                        return;
+                    }
+                    if (smr.ExportTextDatabase(Path.GetDirectoryName(args[0])))
+                        Console.WriteLine("Export Text Success");
+                    else
+                    {
+                        Console.WriteLine("Export Text Failed");
+                        return;
+                    }
+                    if (smr.ExportMessDatabase(Path.GetDirectoryName(args[0])))
+                        Console.WriteLine("Export Mess Success");
+                    else
+                    {
+                        Console.WriteLine("Export Mess Failed");
                         return;
                     }
                 }
             }
-
-
-
-            //if (Directory.Exists(args[0]))
-            //{
-            //    string[] files = Directory.GetFiles(args[0], "*.bin");
-            //    foreach (string file in files)
-            //    {
-            //        ScriptManager smr = new();
-            //        //目前不支持二次加载
-            //        //Todo
-            //        //修复
-            //        if (smr.LoadScriptFile(file))
-            //        {
-            //            Console.WriteLine($"Load {file} Success");
-            //        }
-            //        else
-            //        {
-            //            Console.WriteLine($"Load {file} Failed");
-            //            return;
-            //        }
-
-            //        if (smr.ExportDatabase(Path.GetDirectoryName(args[0])))
-            //            Console.WriteLine("Export Database Success");
-            //        else
-            //        {
-            //            Console.WriteLine("Export Database Failed");
-            //            return;
-            //        }
-
-            //        if (smr.ExportMessDatabase(Path.GetDirectoryName(args[0])))
-            //            Console.WriteLine("Export Mess Database Success");
-            //        else
-            //        {
-            //            Console.WriteLine("Export Mess Database Failed");
-            //            return;
-            //        }
-            //    }
-
-            //}
 
 
             //ScriptManager smr = new();

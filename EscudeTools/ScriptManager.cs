@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using System.ComponentModel;
 using System.Reflection;
 
 namespace EscudeTools
@@ -32,7 +33,7 @@ namespace EscudeTools
         public uint Offset { get; set; }
         public byte Instruction { get; set; }
         public string InstructionString { get; set; }
-        public Object Parameter { get; set; }
+        public byte[] Parameter { get; set; }
         public String Helper { get; set; }
         public bool IsProcSet { get; set; }
     }
@@ -46,7 +47,6 @@ namespace EscudeTools
         private string name = string.Empty;
         private ScriptFile sf;
         private int messIndex = 0;
-        private bool enableCommandHelper = true;
 
         public ScriptMessage GetSM()
         {
@@ -56,12 +56,6 @@ namespace EscudeTools
         public ScriptFile GetSF()
         {
             return sf;
-        }
-
-        public bool ToggleCommandHelper()
-        {
-            enableCommandHelper = !enableCommandHelper;
-            return enableCommandHelper;
         }
 
         public bool LoadScriptFile(string path)
@@ -106,19 +100,17 @@ namespace EscudeTools
                 {
                     Instruction = sf.Code[i++],
                     Offset = (uint)i,
-                    IsProcSet = false
+                    IsProcSet = false,
                 };
-                if (enableCommandHelper)
+                c.InstructionString = Define.GetInstructionString(c.Instruction, out int paramNum);
+                if (paramNum > 0)
                 {
-                    c.InstructionString = Define.GetInstructionString(c.Instruction, out int paramNum);
-                    for (int j = 0; j < paramNum; j++)
-                    {
-                        c.Parameter = Define.TyperHelper(c.Instruction, sf.Code, i);
-                        i += 4;
-                    }
-                    if (sm != null)
-                        c.Helper = Define.SetCommandStr(c, sf, sm, ref messIndex);
+                    c.Parameter = new byte[paramNum*4];
+                    Buffer.BlockCopy(sf.Code, i, c.Parameter, 0, 4 * paramNum);
+                    i += 4 * paramNum;
                 }
+                if (sm != null)
+                    c.Helper = Define.SetCommandStr(c, sf, sm, ref messIndex);
                 sf.Commands.Add(c);
             }
             return true;
@@ -195,7 +187,8 @@ namespace EscudeTools
             return true;
         }
 
-        public bool ExportDatabase(string? storePath)
+        //此导出功能导出的sqlite数据库
+        public bool ExportDatabase(string storePath)
         {
             if (sf.Code == null)
                 return false;
@@ -208,7 +201,8 @@ namespace EscudeTools
             return SqliteProcess(sf, targetPath);
         }
 
-        public bool ExportMessDatabase(string? storePath)
+        //从ScriptMessage中导出游戏文本
+        public bool ExportMessDatabase(string storePath)
         {
             if (sf == null)
                 return false;
@@ -221,6 +215,37 @@ namespace EscudeTools
             if (!File.Exists(targetPath))
                 Utils.ExtractEmbeddedDatabase(targetPath);
             return SqliteProcess(sm, targetPath);
+        }
+
+        //从ScriptFile中导出Text部分，剩余指令部分导出至.dat文件，以便重新封包
+        public bool ExportTextDatabase(string storePath)
+        {
+            if (sf == null)
+                return false;
+            //分成两个文件，一个是放text的sqlite数据库，一个是放code的dat文件
+
+            //dat
+            string datPath = Path.Combine(storePath, name + ".dat");
+            if (File.Exists(datPath))
+                return false;
+            using FileStream fs = new(datPath, FileMode.Create);
+            using BinaryWriter bw = new(fs);
+            bw.Write(FileHeader);//文件头
+            bw.Write(sf.CodeSize);//代码区大小
+            bw.Write(sf.TextCount);//文本数量
+            byte[] empty4B = new byte[4];
+            bw.Write(empty4B);//文本大小(占位)
+            bw.Write(sf.MessCount);//消息数量
+            bw.Write(sf.Code);//代码区
+
+            //sqlite
+            storePath ??= Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? throw new InvalidOperationException("Unable to determine the directory.");
+            if (string.IsNullOrEmpty(name))
+                return false;
+            string targetPath = Path.Combine(storePath, "script_text.db");
+            if (!File.Exists(targetPath))
+                Utils.ExtractEmbeddedDatabase(targetPath);
+            return SqliteProcess(sf.TextString, targetPath);
         }
 
         private bool SqliteProcess(ScriptFile sf, string path)
@@ -240,7 +265,7 @@ namespace EscudeTools
             Offset INTEGER,
             Instruction INTEGER,
             InstructionString TEXT,
-            Parameter TEXT,
+            Parameter BLOB,
             Helper TEXT
         );";
             using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
@@ -259,7 +284,9 @@ namespace EscudeTools
                 insertCmd.Parameters.AddWithValue("@Offset", command.Offset);
                 insertCmd.Parameters.AddWithValue("@Instruction", command.Instruction);
                 insertCmd.Parameters.AddWithValue("@InstructionString", command.InstructionString);
-                insertCmd.Parameters.AddWithValue("@Parameter", command.Parameter ?? "");
+                insertCmd.Parameters.AddWithValue("@Parameter", (command.Parameter == null)
+        ? DBNull.Value
+        : command.Parameter);
                 insertCmd.Parameters.AddWithValue("@Helper", command.Helper ?? "");
 
                 insertCmd.ExecuteNonQuery();
@@ -304,6 +331,58 @@ namespace EscudeTools
 
             transaction.Commit();
             return true;
+        }
+
+        private bool SqliteProcess(string[] ts,string path)
+        {
+            using SqliteConnection connection = new($"Data Source={path};");
+            connection.Open();
+
+            string checkTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}';";
+            using (var checkTableCmd = new SqliteCommand(checkTableExistsQuery, connection))
+            {
+                var result = checkTableCmd.ExecuteScalar();
+                if (result != null) return true;
+            }
+
+            string createTableQuery = $@"
+        CREATE TABLE {name} (
+            Text TEXT
+        );";
+            using (var createTableCmd = new SqliteCommand(createTableQuery, connection))
+            {
+                createTableCmd.ExecuteNonQuery();
+            }
+
+            string insertQuery = $"INSERT INTO {name} (Text) VALUES (@Text);";
+
+            using var transaction = connection.BeginTransaction();
+            using var insertCmd = new SqliteCommand(insertQuery, connection, transaction);
+
+            foreach (var t in ts)
+            {
+                insertCmd.Parameters.Clear();
+                insertCmd.Parameters.AddWithValue("@Text", t ?? "");
+                insertCmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+            return true;
+        }
+
+        public bool Repackv1()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Repackv2()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool Repackv3()
+        {
+            throw new NotImplementedException();
         }
     }
 }
