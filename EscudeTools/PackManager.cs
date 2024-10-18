@@ -52,6 +52,25 @@ namespace EscudeTools
             return true;
         }
 
+        //测试用
+        private bool LoadKey(string path)
+        {
+            if (!File.Exists(path))
+                return false;
+            using (FileStream fs = new(path, FileMode.Open))
+            using (BinaryReader br = new(fs))
+            {
+                byte[] head = br.ReadBytes(fileSignature.Length);
+                if (!head.SequenceEqual(fileSignature))
+                    return false;
+                br.ReadByte();
+                m_seed = br.ReadUInt32();
+            }
+            LoadedKey = m_seed;
+            isLoaded = true;
+            return true;
+        }
+
         private List<Entry>? ProcessV1(BinaryReader br)
         {
             m_seed = br.ReadUInt32();
@@ -127,7 +146,6 @@ namespace EscudeTools
             Buffer.BlockCopy(buffer, 0, data, 0, data.Length);
         }
 
-
         private uint NextKey()
         {
             m_seed ^= 0x65AC9365;
@@ -163,8 +181,10 @@ namespace EscudeTools
             return true;
         }
 
-        public bool Repack(string path, int version) //目前支持v2v1
+        public bool Repack(string path, int version, bool useCustomKey = false, string customKeyProviderPath = "") //目前支持v2v1
         {
+            if (useCustomKey)
+                LoadKey(customKeyProviderPath);
             GeneratePItem(path);
             m_seed = isLoaded ? LoadedKey : 2210579460;
             string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(path) + ".bin");
@@ -230,7 +250,6 @@ namespace EscudeTools
             }
             return true;
         }
-
 
         private void GeneratePItem(string path)
         {

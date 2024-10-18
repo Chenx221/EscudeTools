@@ -5,50 +5,49 @@
         static void Main(string[] args)
         {
 
-
+            ////Batch Unpack
             //if (Directory.Exists(args[0]))
             //{
             //    string[] files = Directory.GetFiles(args[0], "*.bin");
             //    PackManager pm = new();
             //    foreach (string file in files)
             //    {
-            //        //if (pm.Load(file))
-            //        //{
-            //        //    Console.WriteLine($"Load {file} Success");
-            //        //}
-            //        //else
-            //        //{
-            //        //    Console.WriteLine($"Load {file} Failed");
-            //        //    return;
-            //        //}
-
-            //        //if (pm.Extract())
-            //        //    Console.WriteLine("Extract Package Success");
-            //        //else
-            //        //{
-            //        //    Console.WriteLine("Extract Package Failed");
-            //        //    return;
-            //        //}
-
-            //        if (pm.Repack(args[1], 2))
-            //            Console.WriteLine("Repack Package Success");
+            //        if (pm.Load(file))
+            //        {
+            //            Console.WriteLine($"Load {file} Success");
+            //        }
             //        else
             //        {
-            //            Console.WriteLine("Repack Package Failed");
-            //            return;
+            //            Console.WriteLine($"Load {file} Failed");
+            //        }
+
+            //        if (pm.Extract())
+            //            Console.WriteLine("Extract Package Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Extract Package Failed");
             //        }
             //    }
-
             //}
 
-            //PackManager pm = new();
-            //if (pm.Repack(args[1]))
-            //    Console.WriteLine("Export Database Success");
-            //else
-            //{
-            //    Console.WriteLine("Export Database Failed");
-            //    return;
-            //}
+            if (Directory.Exists(args[0]) && Directory.Exists(args[1]))
+            {
+                string[] directories = Directory.GetDirectories(args[0]);
+                foreach (string directory in directories)
+                {
+                    PackManager pm = new();
+                    string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
+                    if (pm.Repack(directory, 2,true, providerFilePath))
+                        Console.WriteLine("Export Database Success");
+                    else
+                    {
+                        Console.WriteLine("Export Database Failed");
+                        return;
+                    }
+                }
+            }
+
+
 
             //if (Directory.Exists(args[0]))
             //{
@@ -96,17 +95,17 @@
             //return;
 
 
-            if (Directory.Exists(args[0]))
-            {
-                string[] files = Directory.GetFiles(args[0], "*.db");
+            //if (Directory.Exists(args[0]))
+            //{
+            //    string[] files = Directory.GetFiles(args[0], "*.db");
 
-                foreach (string file in files)
-                {
-                    DatabaseManager.ExportMDB(file);
+            //    foreach (string file in files)
+            //    {
+            //        DatabaseManager.ExportMDB(file);
 
-                }
-            }
-            
+            //    }
+            //}
+
             //if (Directory.Exists(args[0]))
             //{
             //    string[] files = Directory.GetFiles(args[0], "*.bin");
