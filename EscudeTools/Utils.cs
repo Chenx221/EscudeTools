@@ -122,5 +122,17 @@ namespace EscudeTools
                 _ => throw new NotSupportedException($"Unsupported column Size: {v}"),
             };
         }
+
+        public static byte RotByteR (byte v, int count)
+        {
+            count &= 7;
+            return (byte)(v >> count | v << (8-count));
+        }
+
+        public static byte RotByteL (byte v, int count)
+        {
+            count &= 7;
+            return (byte)(v << count | v >> (8-count));
+        }
     }
 }

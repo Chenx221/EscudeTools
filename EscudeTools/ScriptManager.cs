@@ -1,10 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
-using System.ComponentModel;
-using System.Linq;
 using System.Reflection;
-using System.Reflection.Metadata;
 using System.Text;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace EscudeTools
 {
@@ -115,6 +111,8 @@ namespace EscudeTools
                 }
                 if (sm != null)
                     c.Helper = Define.SetCommandStr(c, sf, sm, ref messIndex);
+                else
+                    c.Helper = Define.SetCommandStr(c, sf, null, ref messIndex);
                 sf.Commands.Add(c);
             }
             return true;
@@ -287,10 +285,25 @@ namespace EscudeTools
             CREATE TABLE {name}__text (
                 Text TEXT
             );";
-                    using (var createTextTableCmd = new SqliteCommand(createTextTableQuery, connection))
-                    {
-                        createTextTableCmd.ExecuteNonQuery();
-                    }
+                    using var createTextTableCmd = new SqliteCommand(createTextTableQuery, connection);
+                    createTextTableCmd.ExecuteNonQuery();
+                }
+                else
+                    return false;
+            }
+            if (sm != null)
+            {
+                string checkMessTableExistsQuery = $"SELECT name FROM sqlite_master WHERE type='table' AND name='{name}__mess';";
+                using var checkMessTableCmd = new SqliteCommand(checkMessTableExistsQuery, connection);
+                var result = checkMessTableCmd.ExecuteScalar();
+                if (result == null)
+                {
+                    string createMessTableQuery = $@"
+            CREATE TABLE {name}__mess (
+                Mess TEXT
+            );";
+                    using var createMessTableCmd = new SqliteCommand(createMessTableQuery, connection);
+                    createMessTableCmd.ExecuteNonQuery();
                 }
                 else
                     return false;
@@ -324,6 +337,19 @@ namespace EscudeTools
                 insertCmdSub.Parameters.Clear();
                 insertCmdSub.Parameters.AddWithValue("@Text", ts ?? "");
                 insertCmdSub.ExecuteNonQuery();
+            }
+
+            if (sm != null)
+            {
+                string insertQuerySub2 = $"INSERT INTO {name}__mess (Mess) VALUES (@Mess);";
+                using var insertCmdSub2 = new SqliteCommand(insertQuerySub2, connection, transaction);
+
+                foreach (string ds in sm.DataString)
+                {
+                    insertCmdSub2.Parameters.Clear();
+                    insertCmdSub2.Parameters.AddWithValue("@Mess", ds ?? "");
+                    insertCmdSub2.ExecuteNonQuery();
+                }
             }
 
             transaction.Commit();
@@ -417,7 +443,7 @@ namespace EscudeTools
             {
                 while (reader.Read())
                 {
-                    if (!reader.GetString(0).EndsWith("__text"))
+                    if (!reader.GetString(0).EndsWith("__text") && !reader.GetString(0).EndsWith("__mess"))
                     {
                         tableNames.Add(reader.GetString(0));
                     }
@@ -441,10 +467,6 @@ namespace EscudeTools
                     MessCount = 0,
                     Commands = []
                 };
-                uint Offset = 0;
-                List<uint> messOffset = new();
-                List<string> messString = new();
-                bool flag = false; // need .001?
                 using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
                 using (var reader = command.ExecuteReader())
                 {
@@ -457,19 +479,10 @@ namespace EscudeTools
                         };
                         sf.Commands.Add(c);
                         sf.CodeSize += 1 + (reader.IsDBNull(3) ? 0 : (uint)((byte[])reader[3]).Length);
-                        if (c.Instruction == 41) //INST_TEXT //此方法未必可靠
-                        {
-                            flag = true;
-                            string s = reader.GetString(4);
-                            messString.Add(s);
-                            messOffset.Add(Offset);
-                            Offset += (uint)(shiftJis.GetBytes(s).Length + 1);
-                            sf.MessCount++;
-                        }
                     }
                 }
-                List<string> textString = new();
-                List<uint> textOffset = new();
+                List<string> textString = [];
+                List<uint> textOffset = [];
                 using (var command = new SqliteCommand($"SELECT * FROM {tableName}__text;", connection))
                 using (var reader = command.ExecuteReader())
                 {
@@ -482,6 +495,30 @@ namespace EscudeTools
                         sf.TextSize += (uint)(shiftJis.GetBytes(s).Length + 1);
                     }
                 }
+                uint Offset = 0;
+                List<uint> messOffset = [];
+                List<string> messString = [];
+                bool flag = false; // need .001?
+                using (var command = new SqliteCommand($"SELECT name FROM sqlite_master WHERE type='table' AND name='{tableName}__mess';", connection))
+                {
+                    using var reader = command.ExecuteReader();
+                    flag = reader.Read();
+                }
+                if (flag)
+                {
+                    using var command = new SqliteCommand($"SELECT * FROM {tableName}__mess;", connection);
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        string s = reader.GetString(0);
+                        messString.Add(s);
+                        messOffset.Add(Offset);
+                        Offset += (uint)(shiftJis.GetBytes(s).Length + 1);
+                        sf.MessCount++;
+                    }
+                }
+
+
                 //准备写入
                 bw.Write(FileHeader);//文件头
                 bw.Write(sf.CodeSize);//代码区大小
@@ -618,8 +655,8 @@ namespace EscudeTools
                     Count = 0,
                     Size = 0
                 };
-                List<uint> messOffset = new();
-                List<string> messString = new();
+                List<uint> messOffset = [];
+                List<string> messString = [];
                 using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
                 using (var reader = command.ExecuteReader())
                 {
@@ -731,8 +768,8 @@ namespace EscudeTools
                 string trunkPath = Path.Combine(Path.GetDirectoryName(sqlitePath), tableName + ".dat");
                 byte[] bytes = File.ReadAllBytes(trunkPath);
                 uint textSizeOffset = 0x10;
-                List<uint> textOffset = new();
-                List<string> textString = new();
+                List<uint> textOffset = [];
+                List<string> textString = [];
                 uint Offset = 0;
                 using (var command = new SqliteCommand($"SELECT * FROM {tableName};", connection))
                 using (var reader = command.ExecuteReader())

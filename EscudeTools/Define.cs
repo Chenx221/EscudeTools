@@ -138,7 +138,7 @@ namespace EscudeTools
             };
         }
 
-        public static string SetCommandStr(Command c, ScriptFile sf, ScriptMessage sm, ref int messIndex)
+        public static string SetCommandStr(Command c, ScriptFile sf, ScriptMessage? sm, ref int messIndex)
         {
             //__cdecl
             switch (c.Instruction)
@@ -162,12 +162,12 @@ namespace EscudeTools
                     return $"Push a floating-point value";
                 case INST_PUSH_RET:
                     return $"Push the return value";
-                case INST_PUSH_TEXT:
+                case INST_PUSH_TEXT://并非所有的TEXT都会使用
                     return $"Push a string: {sf.TextString[BitConverter.ToUInt32(c.Parameter)]}";
-                case INST_PUSH_MESS:
+                case INST_PUSH_MESS://并非所有的MESS都会使用
                     {
                         messIndex++;
-                        return $"{sm.DataString[messIndex - 1]}";
+                        return $"{((sm == null) ? "意外的指令,此表无Mess" : sm.DataString[messIndex - 1])}";
                     }
                 case INST_PUSH_GVAR:
                     return $"Push a global variable";
@@ -244,7 +244,7 @@ namespace EscudeTools
                     return $"Execute built-in function: {ProcNames[index]} {SetExtStr(c, sf)}";
                 case INST_TEXT:
                     messIndex++;
-                    return sm.DataString[messIndex - 1];
+                    return (sm == null) ? "意外的指令，此表无Mess" : sm.DataString[messIndex - 1];
                 default:
                     return "UNKNOWN";
             }

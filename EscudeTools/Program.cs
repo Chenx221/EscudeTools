@@ -92,23 +92,23 @@
             //    }
             //}
 
-            ////Export Script Type 1
-            //if (File.Exists(args[0])) //fail //lost 1 //something diff
-            //{
-            //    ScriptManager.Repackv1(args[0], true);
-            //}
+            //Export Full Script
+            if (File.Exists(args[0])) //fail //lost 1 //something diff
+            {
+                ScriptManager.Repackv1(args[0], true);
+            }
 
-            ////Export Script Type 2
-            //if (File.Exists(args[0])) //pass
-            //{
-            //    ScriptManager.Repackv2(args[0], true);
-            //}
+            //Export ScriptMessage
+            if (File.Exists(args[1])) //pass
+            {
+                ScriptManager.Repackv2(args[1], true);
+            }
 
-            ////Export Script Type 3
-            //if (File.Exists(args[0])) //pass
-            //{
-            //    ScriptManager.Repackv3(args[0]);
-            //}
+            ////Export ScriptFile
+            if (File.Exists(args[2])) //pass
+            {
+                ScriptManager.Repackv3(args[2]);
+            }
 
 
 
