@@ -230,8 +230,6 @@ namespace EscudeTools
                 //            if (t.Count == 0)
                 //                continue;
                 //            pendingListCopy.AddRange(t);
-                //            if (File.Exists(targetFilename + $"_{n++}.png"))
-                //                continue;
                 //            if (!ImageManager.Process(lsfData, [.. pendingListCopy], targetFilename + $"_{n++}.png"))
                 //                throw new Exception("Process Fail");
                 //            else
