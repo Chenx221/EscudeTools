@@ -4,7 +4,7 @@ namespace EscudeTools
 {
     public class ImageManager
     {
-        public static bool EvProcess(LsfData ld, int[] n, string target)
+        public static bool Process(LsfData ld, int[] n, string target)
         {
             //get base size
             int height = ld.lfh.height, width = ld.lfh.width;
@@ -16,15 +16,28 @@ namespace EscudeTools
                 int offsetX = ld.lli[n[i]].rect.left;
                 int offsetY = ld.lli[n[i]].rect.top;
                 int mode = ld.lli[n[i]].mode;
-                baseImage.Composite(overlayImage, offsetX, offsetY, (mode == 3) ? CompositeOperator.Multiply : ((mode == 10) ? CompositeOperator.Plus : CompositeOperator.Over));
+                if (mode == 3)
+                {
+                    overlayImage.Composite(baseImage, -1 * offsetX, -1 * offsetY, CompositeOperator.DstIn);
+                    baseImage.Composite(overlayImage, offsetX, offsetY, CompositeOperator.Multiply);//原先就一条这个，发现处理透明时会有问题
+                }
+                else if (mode == 10)
+                {
+                    baseImage.Composite(overlayImage, offsetX, offsetY, CompositeOperator.Plus);
+                }
+                else
+                {
+                    baseImage.Composite(overlayImage, offsetX, offsetY, CompositeOperator.Over);
+                }
             }
             baseImage.Write(target);
             return true;
         }
 
-        public static bool STProcess()
-        {
-            throw new NotImplementedException();
-        }
+        //上面足够给Ev、St用了
+        //public static bool StProcess()
+        //{
+        //    throw new NotImplementedException();
+        //}
     }
 }

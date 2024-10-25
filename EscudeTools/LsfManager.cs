@@ -148,6 +148,13 @@ namespace EscudeTools
         public LsfData? FindLsfDataByName(string name)
         {
             lsfDataLookup.TryGetValue(name.ToLower(), out var lsfData);
+
+
+            //c**,为什么会有错字？
+            if (name == "08_Syuichi" && lsfData == null)
+                lsfDataLookup.TryGetValue("08_syuuichi", out lsfData);
+
+
             return lsfData; // 如果未找到，则返回 null
         }
 

@@ -76,21 +76,26 @@ namespace EscudeTools
             stream.CopyTo(fileStream);
         }
 
-        public static string GetSQLiteColumnType(ushort type)
+        public static string GetSQLiteColumnType(ushort type, uint size)
         {
-            return type switch
-            {
-                // int
-                0x1 => "INTEGER",
-                // float
-                0x2 => "REAL",
-                // string
-                0x3 => "TEXT",
-                // bool
-                0x4 => "INTEGER",
-                _ => throw new NotSupportedException($"Unsupported column type: {type}"),
-            };
-            throw new NotImplementedException();
+            if (type == 1)
+                return "INTEGER";
+            //else if (type == 4 && size == 4)
+            //    return "TEXT";
+            else
+                return "TEXT";
+            //return type switch
+            //{
+            //    // int
+            //    0x1 => "INTEGER",
+            //    // float
+            //    0x2 => "REAL",
+            //    // string
+            //    0x3 => "TEXT",
+            //    // bool
+            //    0x4 => "INTEGER",
+            //    _ => throw new NotSupportedException($"Unsupported column type: {type}"),
+            //};
         }
 
         public static bool ISKANJI(byte x)
@@ -123,16 +128,16 @@ namespace EscudeTools
             };
         }
 
-        public static byte RotByteR (byte v, int count)
+        public static byte RotByteR(byte v, int count)
         {
             count &= 7;
-            return (byte)(v >> count | v << (8-count));
+            return (byte)(v >> count | v << (8 - count));
         }
 
-        public static byte RotByteL (byte v, int count)
+        public static byte RotByteL(byte v, int count)
         {
             count &= 7;
-            return (byte)(v << count | v >> (8-count));
+            return (byte)(v << count | v >> (8 - count));
         }
     }
 }

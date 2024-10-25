@@ -6,6 +6,7 @@ namespace EscudeTools
     {
         static void Main(string[] args)
         {
+            //批量处理EV/ST
             if (Directory.Exists(args[0]) && File.Exists(args[1]))
             //if (File.Exists(args[0]))
             {
@@ -13,9 +14,9 @@ namespace EscudeTools
                 using SqliteConnection connection = new($"Data Source={graphicsDBPath};");
                 connection.Open();
                 List<string> tableNames = [];
-                string[] foundTN = new string[2];
+                string[] foundTN = new string[3];
                 List<int> tableIds = [];
-                bool found1 = false, found2 = false;
+                bool found1 = false, found2 = false, found3 = false;
                 using (var command = new SqliteCommand("SELECT name FROM sqlite_master WHERE type='table';", connection))
                 using (var reader = command.ExecuteReader())
                 {
@@ -33,11 +34,16 @@ namespace EscudeTools
                             foundTN[1] = tableName;
                             found2 = true;
                         }
+                        else if (tableName.StartsWith("表情"))
+                        {
+                            foundTN[2] = tableName;
+                            found3 = true;
+                        }
                         tableNames.Add(tableName);
                         tableIds.Add(id++);
                     }
                 }
-                if (!(found1 && found2))
+                if (!(found1 && found2 && found3)) //这里的代码未经测试
                 {
                     for (int i = 0; i < tableNames.Count; i++)
                         Console.WriteLine($"{tableIds[i]}: {tableNames[i]}");
@@ -85,10 +91,33 @@ namespace EscudeTools
                             return;
                         }
                     }
+                    if (!found3)
+                    {
+                        Console.WriteLine("自动识别失败，请选择存放表情信息的数据表ID: ");
+                        string? input = Console.ReadLine();
+                        if (int.TryParse(input, out int userInputId))
+                        {
+                            if (userInputId >= 0 && userInputId < tableIds.Count)
+                            {
+                                foundTN[2] = tableNames[userInputId];
+                            }
+                            else
+                            {
+                                Console.WriteLine("Invalid ID.");
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid input. Please enter a valid number.");
+                            return;
+                        }
+                    }
 
                 }
                 List<EvTable> evts = [];
                 List<StTable> stts = [];
+                Face[] faces = new Face[32];
                 using (var command = new SqliteCommand($"SELECT * FROM {foundTN[0]};", connection))
                 {
                     using var reader = command.ExecuteReader();
@@ -125,12 +154,28 @@ namespace EscudeTools
                             option = reader.GetString(2).Split(' '),
                             coverd = (uint)reader.GetInt32(3),
                             filter = (uint)reader.GetInt32(4),
-                            color = (uint)reader.GetInt32(5),
+                            face = (uint)reader.GetInt32(5),
                             id = (uint)reader.GetInt32(6),
                             loc = (uint)reader.GetInt32(7),
                             order = reader.GetInt32(8),
                             link = (uint)reader.GetInt32(9)
                         });
+                    }
+                }
+                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[2]};", connection))
+                {
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
+                            continue;
+                        for (int i = 0; i < faces.Length; i++)
+                        {
+                            if (faces[i] == null)
+                                faces[i] = new Face();
+                            if (reader.GetInt32(2 + i) == 1)
+                                faces[i].faceOptions.Add(reader.GetString(1));
+                        }
                     }
                 }
 
@@ -153,33 +198,77 @@ namespace EscudeTools
                 {
                     MaxDegreeOfParallelism = 6 // 设置最大并行线程数
                 };
-                Parallel.ForEach(evts, parallelOptions, evt =>
-                //foreach (EvTable evt in evts)
+
+                //ST //表情还要另取？
+                Parallel.ForEach(stts, parallelOptions, stt =>
+                //foreach (StTable stt in stts)
                 {
-                    if (evt.order == 0) //仅提取鉴赏中有的CG
-                        return;
+                    if (stt.order == 0) //仅提取鉴赏中有的ST
+                                        return;
                     //continue;
-                    string targetFilename = Path.Combine(outputDir, evt.name + ".png"); //最后保存可用的文件名（这里还没有后缀）
-                    LsfData lsfData = lm.FindLsfDataByName(evt.file) ?? throw new Exception("Something Wrong");
+                    string targetFilename = Path.Combine(outputDir, stt.name); //最后保存可用的文件名
+                    LsfData? lsfData = lm.FindLsfDataByName(stt.file) ?? throw new Exception($"错误，未找到与{stt.file}对应的lsf数据");
                     List<int> pendingList = [];
-                    foreach (string o in evt.option)
+                    List<string> pendingListFn = [];
+                    foreach (string o in stt.option)
                     {
-                        int t = TableManagercs.ParseOptions(lsfData, o);
-                        if (t == -1)
+                        List<int> t = TableManagercs.ParseOptions(lsfData, o);
+                        if (t.Count == 0)
                             continue;
-                        pendingList.Add(t);
+                        pendingList.AddRange(t);
+                        foreach (int i in t)
+                        {
+                            pendingListFn.Add(lsfData.lli[i].nameStr);
+                        }
                     }
-                    if (pendingList[0] != 0)
-                        pendingList.Insert(0, 0);
-                    if (!ImageManager.EvProcess(lsfData, [.. pendingList], targetFilename))
-                        throw new Exception("Process Fail");
-                    else
-                        Console.WriteLine($"Export {evt.name} Success");
-                });
+                    pendingList = TableManagercs.OrderLayer(pendingList, pendingListFn);
+                    int n = 0;
+                    foreach (string o in faces[(int)stt.face].faceOptions)
+                    {
+                        List<int> pendingListCopy = new(pendingList);
+                        List<int> t = TableManagercs.ParseOptions(lsfData, o);
+                        if (t.Count == 0)
+                            continue;
+                        pendingListCopy.AddRange(t);
+                        if (File.Exists(targetFilename + $"_{n++}.png"))
+                            continue;
+                        if (!ImageManager.Process(lsfData, [.. pendingListCopy], targetFilename + $"_{n++}.png"))
+                            throw new Exception("Process Fail");
+                        else
+                            Console.WriteLine($"Export {stt.name}_{n - 1} Success");
+                    }
+                    });
+            //}
+
+                ////EV
+                ////Parallel.ForEach(evts, parallelOptions, evt =>
+                //foreach (EvTable evt in evts)
+                //{
+                //    if (evt.order == 0) //仅提取鉴赏中有的CG
+                //                        //return;
+                //        continue;
+                //    string targetFilename = Path.Combine(outputDir, evt.name + ".png"); //最后保存可用的文件名
+                //    LsfData lsfData = lm.FindLsfDataByName(evt.file) ?? throw new Exception("Something Wrong");
+                //    List<int> pendingList = [];
+                //    foreach (string o in evt.option)
+                //    {
+                //        List<int> t = TableManagercs.ParseOptions(lsfData, o);
+                //        if (t.Count == 0)
+                //            continue;
+                //        pendingList.AddRange(t);
+                //    }
+                //    if (pendingList[0] != 0)
+                //        pendingList.Insert(0, 0);
+                //    if (!ImageManager.Process(lsfData, [.. pendingList], targetFilename))
+                //        throw new Exception("Process Fail");
+                //    else
+                //        Console.WriteLine($"Export {evt.name} Success");
+                //    //});
                 //}
-
-
             }
+
+
+
 
 
 
@@ -345,7 +434,7 @@ namespace EscudeTools
 
             //}
 
-
+            ////导出db_*.bin
             //if (Directory.Exists(args[0]))
             //{
             //    string[] files = Directory.GetFiles(args[0], "db_*.bin");
@@ -401,8 +490,7 @@ namespace EscudeTools
             //    Console.WriteLine("  -s <filepath>  Same as <filepath>");
             //    Console.WriteLine("  -h             Display help info");
             //}
-
-
         }
+
     }
 }

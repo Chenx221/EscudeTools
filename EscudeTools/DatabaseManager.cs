@@ -1,6 +1,7 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Reflection;
 using System.Text;
+using System.Xml.Linq;
 
 namespace EscudeTools
 {
@@ -169,7 +170,7 @@ namespace EscudeTools
                     // Add columns to the create table query
                     foreach (var column in sheet.col)
                     {
-                        createTableQuery.Append($"{column.name} {Utils.GetSQLiteColumnType(column.type)}, ");
+                        createTableQuery.Append($"{column.name} {Utils.GetSQLiteColumnType(column.type, column.size)}, ");
                     }
 
                     createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
@@ -177,6 +178,7 @@ namespace EscudeTools
 
                     createTableCommand.CommandText = createTableQuery.ToString();
                     createTableCommand.ExecuteNonQuery();
+
                 }
 
                 using SqliteCommand insertDataCommand = connection.CreateCommand();
@@ -295,7 +297,7 @@ namespace EscudeTools
                     reader.Read();
                     if (reader.GetFieldType(1) == typeof(int))
                     {
-                        flag2 = reader.GetInt32(1)==0;
+                        flag2 = reader.GetInt32(1) == 0;
                     }
                     else if (reader.GetFieldType(1) == typeof(string))
                     {
@@ -309,7 +311,7 @@ namespace EscudeTools
                 {
                     if (types[i] != 4)
                         continue;
-                    if (textOffset == 0&&flag2)
+                    if (textOffset == 0 && flag2)
                     {
                         textOffset++;
                         flag = false;
@@ -346,7 +348,7 @@ namespace EscudeTools
                 }
                 int index1 = textMulti.IndexOf(tableName[..^3]);
                 textMulti.Add(tableName[..^3]);
-                if(index1 == -1)
+                if (index1 == -1)
                 {
                     text.Add(tableName[..^3]);//表名
                     textOffset1.Add(textOffset);
