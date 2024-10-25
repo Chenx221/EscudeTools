@@ -199,18 +199,59 @@ namespace EscudeTools
                     MaxDegreeOfParallelism = 6 // 设置最大并行线程数
                 };
 
-                //ST //表情还要另取？
-                Parallel.ForEach(stts, parallelOptions, stt =>
-                //foreach (StTable stt in stts)
+                //    //ST //表情还要另取？
+                //    Parallel.ForEach(stts, parallelOptions, stt =>
+                //    //foreach (StTable stt in stts)
+                //    {
+                //        if (stt.order == 0) //仅提取鉴赏中有的ST
+                //                            return;
+                //        //continue;
+                //        string targetFilename = Path.Combine(outputDir, stt.name); //最后保存可用的文件名
+                //        LsfData? lsfData = lm.FindLsfDataByName(stt.file) ?? throw new Exception($"错误，未找到与{stt.file}对应的lsf数据");
+                //        List<int> pendingList = [];
+                //        List<string> pendingListFn = [];
+                //        foreach (string o in stt.option)
+                //        {
+                //            List<int> t = TableManagercs.ParseOptions(lsfData, o);
+                //            if (t.Count == 0)
+                //                continue;
+                //            pendingList.AddRange(t);
+                //            foreach (int i in t)
+                //            {
+                //                pendingListFn.Add(lsfData.lli[i].nameStr);
+                //            }
+                //        }
+                //        pendingList = TableManagercs.OrderLayer(pendingList, pendingListFn);
+                //        int n = 0;
+                //        foreach (string o in faces[(int)stt.face].faceOptions)
+                //        {
+                //            List<int> pendingListCopy = new(pendingList);
+                //            List<int> t = TableManagercs.ParseOptions(lsfData, o);
+                //            if (t.Count == 0)
+                //                continue;
+                //            pendingListCopy.AddRange(t);
+                //            if (File.Exists(targetFilename + $"_{n++}.png"))
+                //                continue;
+                //            if (!ImageManager.Process(lsfData, [.. pendingListCopy], targetFilename + $"_{n++}.png"))
+                //                throw new Exception("Process Fail");
+                //            else
+                //                Console.WriteLine($"Export {stt.name}_{n - 1} Success");
+                //        }
+                //        });
+                ////}
+
+                //EV
+                Parallel.ForEach(evts, parallelOptions, evt =>
+                //foreach (EvTable evt in evts)
                 {
-                    if (stt.order == 0) //仅提取鉴赏中有的ST
-                                        return;
+                    if (evt.order == 0) //仅提取鉴赏中有的CG
+                        return;
                     //continue;
-                    string targetFilename = Path.Combine(outputDir, stt.name); //最后保存可用的文件名
-                    LsfData? lsfData = lm.FindLsfDataByName(stt.file) ?? throw new Exception($"错误，未找到与{stt.file}对应的lsf数据");
+                    string targetFilename = Path.Combine(outputDir, evt.name + ".png"); //最后保存可用的文件名
+                    LsfData lsfData = lm.FindLsfDataByName(evt.file) ?? throw new Exception("Something Wrong");
                     List<int> pendingList = [];
                     List<string> pendingListFn = [];
-                    foreach (string o in stt.option)
+                    foreach (string o in evt.option)
                     {
                         List<int> t = TableManagercs.ParseOptions(lsfData, o);
                         if (t.Count == 0)
@@ -222,48 +263,13 @@ namespace EscudeTools
                         }
                     }
                     pendingList = TableManagercs.OrderLayer(pendingList, pendingListFn);
-                    int n = 0;
-                    foreach (string o in faces[(int)stt.face].faceOptions)
-                    {
-                        List<int> pendingListCopy = new(pendingList);
-                        List<int> t = TableManagercs.ParseOptions(lsfData, o);
-                        if (t.Count == 0)
-                            continue;
-                        pendingListCopy.AddRange(t);
-                        if (File.Exists(targetFilename + $"_{n++}.png"))
-                            continue;
-                        if (!ImageManager.Process(lsfData, [.. pendingListCopy], targetFilename + $"_{n++}.png"))
-                            throw new Exception("Process Fail");
-                        else
-                            Console.WriteLine($"Export {stt.name}_{n - 1} Success");
-                    }
-                    });
-            //}
-
-                ////EV
-                ////Parallel.ForEach(evts, parallelOptions, evt =>
-                //foreach (EvTable evt in evts)
-                //{
-                //    if (evt.order == 0) //仅提取鉴赏中有的CG
-                //                        //return;
-                //        continue;
-                //    string targetFilename = Path.Combine(outputDir, evt.name + ".png"); //最后保存可用的文件名
-                //    LsfData lsfData = lm.FindLsfDataByName(evt.file) ?? throw new Exception("Something Wrong");
-                //    List<int> pendingList = [];
-                //    foreach (string o in evt.option)
-                //    {
-                //        List<int> t = TableManagercs.ParseOptions(lsfData, o);
-                //        if (t.Count == 0)
-                //            continue;
-                //        pendingList.AddRange(t);
-                //    }
-                //    if (pendingList[0] != 0)
-                //        pendingList.Insert(0, 0);
-                //    if (!ImageManager.Process(lsfData, [.. pendingList], targetFilename))
-                //        throw new Exception("Process Fail");
-                //    else
-                //        Console.WriteLine($"Export {evt.name} Success");
-                //    //});
+                    if (pendingList[0] != 0)
+                        pendingList.Insert(0, 0);
+                    if (!ImageManager.Process(lsfData, [.. pendingList], targetFilename))
+                        throw new Exception("Process Fail");
+                    else
+                        Console.WriteLine($"Export {evt.name} Success");
+                });
                 //}
             }
 
