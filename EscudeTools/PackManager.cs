@@ -170,7 +170,7 @@ namespace EscudeTools
             if (!Directory.Exists(output))
                 Directory.CreateDirectory(output);
             var lzwManifest = new List<LzwEntry>();
-            string jsonPath = Path.Combine(output, "lzwManifest.json");
+            //string jsonPath = Path.Combine(output, "lzwManifest.json");
             using FileStream inputStream = new(pFile, FileMode.Open, FileAccess.Read);
             using BinaryReader br = new(inputStream);
             foreach (Entry entry in pItem)
@@ -207,11 +207,11 @@ namespace EscudeTools
 
             if (lzwManifest.Count > 0)
             {
-                using (FileStream fs = File.Create(jsonPath))
-                {
-                    byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(lzwManifest));
-                    fs.Write(jsonBytes, 0, jsonBytes.Length);
-                }
+                //using (FileStream fs = File.Create(jsonPath))
+                //{
+                //    byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(lzwManifest));
+                //    fs.Write(jsonBytes, 0, jsonBytes.Length);
+                //}
                 LzwDecode(lzwManifest, output);
             };
 
