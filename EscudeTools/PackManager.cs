@@ -317,8 +317,9 @@ namespace EscudeTools
             if (useCustomKey)
                 LoadKey(customKeyProviderPath);
             GeneratePItem(path);
-            if(File.Exists(Path.Combine(path, "lzwManifest.json")))
-                return false; //Q:为什么不支持 //A:因为我实在不想研究lzw算法，欢迎PR
+            //if(File.Exists(Path.Combine(path, "lzwManifest.json")))
+            //    return false; 
+            //Q:为什么不支持LZW打包 //A:因为我实在不想研究lzw算法，欢迎PR
             m_seed = isLoaded ? LoadedKey : 2210579460;
             string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(path) + ".bin");
             using (FileStream fs = new(outputPath, FileMode.Create))

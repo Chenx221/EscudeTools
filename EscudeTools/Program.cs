@@ -328,22 +328,24 @@ namespace EscudeTools
             //    }
             //}
 
-            //Batch Repack ESC-ARC Package
-            if (Directory.Exists(args[0]))// && Directory.Exists(args[1])
-            {
-                string[] directories = Directory.GetDirectories(args[0]);
-                foreach (string directory in directories)
-                {
-                    PackManager pm = new();
-                    //string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
-                    if (pm.Repack(directory, 2, true))
-                        Console.WriteLine("Repack Package Success");
-                    else
-                    {
-                        Console.WriteLine("Repack Package Failed");
-                    }
-                }
-            }
+            ////不支持script data打包，因为这几个封包，游戏强制lzw压缩读取
+            ////而我没写出lzw压缩代码
+            ////Batch Repack ESC-ARC Package
+            //if (Directory.Exists(args[0]))// && Directory.Exists(args[1])
+            //{
+            //    string[] directories = Directory.GetDirectories(args[0]);
+            //    foreach (string directory in directories)
+            //    {
+            //        PackManager pm = new();
+            //        //string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
+            //        if (pm.Repack(directory, 2, true))
+            //            Console.WriteLine("Repack Package Success");
+            //        else
+            //        {
+            //            Console.WriteLine("Repack Package Failed");
+            //        }
+            //    }
+            //}
 
 
             ////Batch Unpack Script(Full, Text, Mess)
@@ -438,34 +440,34 @@ namespace EscudeTools
 
             //}
 
-            ////导出db_*.bin
-            //if (Directory.Exists(args[0]))
-            //{
-            //    string[] files = Directory.GetFiles(args[0], "db_*.bin");
-            //    DatabaseManager dm = new();
-            //    foreach (string file in files)
-            //    {
-            //        if (dm.LoadDatabase(file))
-            //        {
-            //            Console.WriteLine($"Load {file} Success");
-            //        }
-            //        else
-            //        {
-            //            Console.WriteLine($"Load {file} Failed");
-            //            return;
-            //        }
+            //导出db_*.bin
+            if (Directory.Exists(args[0]))
+            {
+                string[] files = Directory.GetFiles(args[0], "db_*.bin");
+                DatabaseManager dm = new();
+                foreach (string file in files)
+                {
+                    if (dm.LoadDatabase(file))
+                    {
+                        Console.WriteLine($"Load {file} Success");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Load {file} Failed");
+                        return;
+                    }
 
-            //        if (dm.ExportDatabase(Path.GetDirectoryName(args[0])))
-            //            Console.WriteLine("Export Database Success");
-            //        else
-            //        {
-            //            Console.WriteLine("Export Database Failed");
-            //            return;
-            //        }
+                    if (dm.ExportDatabase(Path.GetDirectoryName(args[0])))
+                        Console.WriteLine("Export Database Success");
+                    else
+                    {
+                        Console.WriteLine("Export Database Failed");
+                        return;
+                    }
 
-            //    }
+                }
 
-            //}
+            }
 
 
             //    if (args.Length == 0 || args.Length > 2)
