@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿//部分代码来自Garbro
+using System.Reflection;
 using System.Text;
 
 namespace EscudeTools
@@ -138,6 +139,30 @@ namespace EscudeTools
         {
             count &= 7;
             return (byte)(v << count | v >> (8 - count));
+        }
+
+        public static int ToBigEndian(int value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            Array.Reverse(bytes);
+            return BitConverter.ToInt32(bytes, 0);
+        }
+        public static void CopyOverlapped(byte[] data, int src, int dst, int count)
+        {
+            if (dst > src)
+            {
+                while (count > 0)
+                {
+                    int preceding = Math.Min(dst - src, count);
+                    Buffer.BlockCopy(data, src, data, dst, preceding);
+                    dst += preceding;
+                    count -= preceding;
+                }
+            }
+            else
+            {
+                Buffer.BlockCopy(data, src, data, dst, count);
+            }
         }
     }
 }

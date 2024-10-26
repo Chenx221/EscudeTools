@@ -1,5 +1,7 @@
 ﻿//这里的提取代码参考(Ctrl+C, Ctrl+V)了Garbro中关于ESCUDE BIN封包的实现
+using EscudeTools.Garbro;
 using System.Text;
+using System.Text.Json;
 
 namespace EscudeTools
 {
@@ -9,9 +11,15 @@ namespace EscudeTools
         public long Offset { get; set; }
         public uint Size { get; set; }
     }
+    public class LzwEntry
+    {
+        public string Name { get; set; }
+        public int UnpackSize { get; set; }
+    }
     public class PackManager
     {
         static readonly byte[] fileSignature = [0x45, 0x53, 0x43, 0x2D, 0x41, 0x52, 0x43]; //"ESC-ARC"
+        static readonly byte[] LzwSignature = [0x61, 0x63, 0x70, 0x00]; //"acp\0"
         static readonly byte[] supportPackVersion = [0x31, 0x32]; //1, 2
         private bool isLoaded = false;
         private uint LoadedKey;
@@ -161,8 +169,9 @@ namespace EscudeTools
             string output = Path.Combine(Path.GetDirectoryName(pFile), "output", Path.GetFileNameWithoutExtension(pFile));
             if (!Directory.Exists(output))
                 Directory.CreateDirectory(output);
-
-            using FileStream inputStream = new(pFile, FileMode.Open);
+            var lzwManifest = new List<LzwEntry>();
+            using FileStream inputStream = new(pFile, FileMode.Open, FileAccess.Read);
+            using BinaryReader br = new(inputStream);
             foreach (Entry entry in pItem)
             {
                 string entryPath = Path.Combine(output, entry.Name);
@@ -170,17 +179,135 @@ namespace EscudeTools
 
                 if (!Directory.Exists(entryDirectory))
                     Directory.CreateDirectory(entryDirectory);
+                byte[] test;
+                br.BaseStream.Seek(entry.Offset, SeekOrigin.Begin);
+                test = br.ReadBytes(LzwSignature.Length);
 
-                using FileStream outputStream = new(entryPath, FileMode.Create);
-                inputStream.Seek(entry.Offset, SeekOrigin.Begin);
-                byte[] buffer = new byte[entry.Size];
-                inputStream.Read(buffer, 0, buffer.Length);
-                outputStream.Write(buffer, 0, buffer.Length);
+                if (entry.Size > 8 && test.SequenceEqual(LzwSignature))
+                {
+                    entryPath += ".lzw";
+                    int upackSize = Utils.ToBigEndian(br.ReadInt32());
+                    lzwManifest.Add(new LzwEntry { Name = entry.Name, UnpackSize = upackSize });
+                    using FileStream outputStream = new(entryPath, FileMode.Create);
+                    inputStream.Seek(entry.Offset + 8, SeekOrigin.Begin);
+                    byte[] buffer = new byte[entry.Size - 8];
+                    inputStream.Read(buffer, 0, buffer.Length);
+                    outputStream.Write(buffer, 0, buffer.Length);
+                }
+                else
+                {
+                    using FileStream outputStream = new(entryPath, FileMode.Create);
+                    inputStream.Seek(entry.Offset, SeekOrigin.Begin);
+                    byte[] buffer = new byte[entry.Size];
+                    inputStream.Read(buffer, 0, buffer.Length);
+                    outputStream.Write(buffer, 0, buffer.Length);
+                }
             }
+
+            if (lzwManifest.Count > 0)
+            {
+                LzwDecode(lzwManifest, output);
+            };
 
             return true;
         }
 
+        private void LzwDecode(List<LzwEntry> lzwManifest, string output)
+        {
+            foreach (var i in lzwManifest)
+            {
+                string targetPath = Path.Combine(output, i.Name);
+                int unpacked_size = i.UnpackSize;
+                using FileStream inputStream = new(targetPath + ".lzw", FileMode.Open, FileAccess.Read);
+                using var decoder = new LzwDecoder(inputStream, unpacked_size);
+                decoder.Unpack();
+                using FileStream outputStream = new(targetPath, FileMode.Create);
+                outputStream.Write(decoder.Output, 0, decoder.Output.Length);
+                outputStream.Flush();
+                outputStream.Close();
+                inputStream.Close();
+                File.Delete(targetPath + ".lzw");
+            }
+        }
+
+        internal sealed class LzwDecoder : IDisposable
+        {
+            private MsbBitStream m_input;
+            private byte[] m_output;
+
+            public byte[] Output { get { return m_output; } }
+
+            public LzwDecoder(Stream input, int unpacked_size)
+            {
+                m_input = new MsbBitStream(input, true);
+                m_output = new byte[unpacked_size];
+            }
+
+            public void Unpack()
+            {
+                int dst = 0;
+                var lzw_dict = new int[0x8900];
+                int token_width = 9;
+                int dict_pos = 0;
+                while (dst < m_output.Length)
+                {
+                    int token = m_input.GetBits(token_width);
+                    if (-1 == token)
+                        throw new EndOfStreamException("Invalid compressed stream");
+                    else if (0x100 == token) // end of input
+                        break;
+                    else if (0x101 == token) // increase token width
+                    {
+                        ++token_width;
+                        if (token_width > 24)
+                            throw new Exception("Invalid comressed stream");
+                    }
+                    else if (0x102 == token) // reset dictionary
+                    {
+                        token_width = 9;
+                        dict_pos = 0;
+                    }
+                    else
+                    {
+                        if (dict_pos >= lzw_dict.Length)
+                            throw new Exception("Invalid comressed stream");
+                        lzw_dict[dict_pos++] = dst;
+                        if (token < 0x100)
+                        {
+                            m_output[dst++] = (byte)token;
+                        }
+                        else
+                        {
+                            token -= 0x103;
+                            if (token >= dict_pos)
+                                throw new Exception("Invalid comressed stream");
+                            int src = lzw_dict[token];
+                            int count = Math.Min(m_output.Length - dst, lzw_dict[token + 1] - src + 1);
+                            if (count < 0)
+                                throw new Exception("Invalid comressed stream");
+                            Utils.CopyOverlapped(m_output, src, dst, count);
+                            dst += count;
+                        }
+                    }
+                }
+            }
+
+            #region IDisposable Members
+            bool _disposed = false;
+            public void Dispose()
+            {
+                if (!_disposed)
+                {
+                    m_input.Dispose();
+                    _disposed = true;
+                }
+                GC.SuppressFinalize(this);
+            }
+            #endregion
+        }
+
+        //原先还在思考怎么实现lzw压缩
+        //摸一会儿鱼回来想到，不压缩好像也没问题
         public bool Repack(string path, int version, bool useCustomKey = false, string customKeyProviderPath = "") //目前支持v2v1
         {
             if (useCustomKey)
