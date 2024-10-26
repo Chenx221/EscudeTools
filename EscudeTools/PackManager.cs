@@ -170,6 +170,7 @@ namespace EscudeTools
             if (!Directory.Exists(output))
                 Directory.CreateDirectory(output);
             var lzwManifest = new List<LzwEntry>();
+            string jsonPath = Path.Combine(output, "lzwManifest.json");
             using FileStream inputStream = new(pFile, FileMode.Open, FileAccess.Read);
             using BinaryReader br = new(inputStream);
             foreach (Entry entry in pItem)
@@ -206,6 +207,11 @@ namespace EscudeTools
 
             if (lzwManifest.Count > 0)
             {
+                using (FileStream fs = File.Create(jsonPath))
+                {
+                    byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(lzwManifest));
+                    fs.Write(jsonBytes, 0, jsonBytes.Length);
+                }
                 LzwDecode(lzwManifest, output);
             };
 
@@ -306,13 +312,13 @@ namespace EscudeTools
             #endregion
         }
 
-        //原先还在思考怎么实现lzw压缩
-        //摸一会儿鱼回来想到，不压缩好像也没问题
         public bool Repack(string path, int version, bool useCustomKey = false, string customKeyProviderPath = "") //目前支持v2v1
         {
             if (useCustomKey)
                 LoadKey(customKeyProviderPath);
             GeneratePItem(path);
+            if(File.Exists(Path.Combine(path, "lzwManifest.json")))
+                return false; //Q:为什么不支持 //A:因为我实在不想研究lzw算法，欢迎PR
             m_seed = isLoaded ? LoadedKey : 2210579460;
             string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(path) + ".bin");
             using (FileStream fs = new(outputPath, FileMode.Create))
@@ -371,27 +377,29 @@ namespace EscudeTools
                 }
                 foreach (Entry entry in pItem)
                 {
-                    byte[] data = File.ReadAllBytes(Path.Combine(path, entry.Name));
-                    bw.Write(data);
-                }
-            }
+                            byte[] data = File.ReadAllBytes(Path.Combine(path, entry.Name));
+                            bw.Write(data);
+                        }
+                    }
             return true;
         }
 
         private void GeneratePItem(string path)
         {
             pItem.Clear();
-            var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
+            var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories)
+                             .Where(file => !file.EndsWith("lzwManifest.json", StringComparison.OrdinalIgnoreCase))
+                             .ToArray();
             foreach (var file in files)
-            {
-                var relativePath = Path.GetRelativePath(path, file);
-                var fileInfo = new FileInfo(file);
-                pItem.Add(new Entry
                 {
-                    Name = relativePath,
-                    Size = (uint)fileInfo.Length
-                });
-            }
+                    var relativePath = Path.GetRelativePath(path, file);
+                    var fileInfo = new FileInfo(file);
+                    pItem.Add(new Entry
+                    {
+                        Name = relativePath,
+                        Size = (uint)fileInfo.Length
+                    });
+                }
             m_count = (uint)pItem.Count;
         }
     }

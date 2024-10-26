@@ -329,19 +329,18 @@ namespace EscudeTools
             //}
 
             //Batch Repack ESC-ARC Package
-            if (Directory.Exists(args[0]) && Directory.Exists(args[1]))
+            if (Directory.Exists(args[0]))// && Directory.Exists(args[1])
             {
                 string[] directories = Directory.GetDirectories(args[0]);
                 foreach (string directory in directories)
                 {
                     PackManager pm = new();
-                    string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
+                    //string providerFilePath = Path.Combine(args[1], Path.GetFileName(directory) + ".bin");
                     if (pm.Repack(directory, 2, true))
                         Console.WriteLine("Repack Package Success");
                     else
                     {
                         Console.WriteLine("Repack Package Failed");
-                        return;
                     }
                 }
             }

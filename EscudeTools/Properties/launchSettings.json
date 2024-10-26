@@ -2,7 +2,7 @@
   "profiles": {
     "EscudeTools": {
       "commandName": "Project",
-      "commandLineArgs": "G:\\x221.local\\lab3\\test\\output\r\nG:\\x221.local\\lab3\\test\\helper"
+      "commandLineArgs": "G:\\x221.local\\lab3\\Haison\\output\\output"
     }
   }
 }
