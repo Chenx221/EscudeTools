@@ -116,7 +116,7 @@ namespace EscudeTools
 
                 }
                 List<EvTable> evts = [];
-                List<StTable> stts = [];
+                //List<StTable> stts = [];
                 Face[] faces = new Face[32];
                 using (var command = new SqliteCommand($"SELECT * FROM {foundTN[0]};", connection))
                 {
@@ -132,52 +132,52 @@ namespace EscudeTools
                             option = reader.GetString(2).Split(' '),
                             coverd = (uint)reader.GetInt32(3),
                             filter = (uint)reader.GetInt32(4),
-                            color = (uint)reader.GetInt32(5),
-                            id = (uint)reader.GetInt32(6),
-                            loc = (uint)reader.GetInt32(7),
-                            order = reader.GetInt32(8),
-                            link = (uint)reader.GetInt32(9)
+                            //color = (uint)reader.GetInt32(5),
+                            id = (uint)reader.GetInt32(5),
+                            loc = (uint)reader.GetInt32(6),
+                            order = reader.GetInt32(7),
+                            link = (uint)reader.GetInt32(8)
                         });
                     }
                 }
-                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[1]};", connection))
-                {
-                    using var reader = command.ExecuteReader();
-                    while (reader.Read())
-                    {
-                        if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
-                            continue;
-                        stts.Add(new StTable
-                        {
-                            name = reader.GetString(0),
-                            file = reader.GetString(1),
-                            option = reader.GetString(2).Split(' '),
-                            coverd = (uint)reader.GetInt32(3),
-                            filter = (uint)reader.GetInt32(4),
-                            face = (uint)reader.GetInt32(5),
-                            id = (uint)reader.GetInt32(6),
-                            loc = (uint)reader.GetInt32(7),
-                            order = reader.GetInt32(8),
-                            link = (uint)reader.GetInt32(9)
-                        });
-                    }
-                }
-                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[2]};", connection))
-                {
-                    using var reader = command.ExecuteReader();
-                    while (reader.Read())
-                    {
-                        if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
-                            continue;
-                        for (int i = 0; i < faces.Length; i++)
-                        {
-                            if (faces[i] == null)
-                                faces[i] = new Face();
-                            if (reader.GetInt32(2 + i) == 1)
-                                faces[i].faceOptions.Add(reader.GetString(1));
-                        }
-                    }
-                }
+                //using (var command = new SqliteCommand($"SELECT * FROM {foundTN[1]};", connection))
+                //{
+                //    using var reader = command.ExecuteReader();
+                //    while (reader.Read())
+                //    {
+                //        if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
+                //            continue;
+                //        stts.Add(new StTable
+                //        {
+                //            name = reader.GetString(0),
+                //            file = reader.GetString(1),
+                //            option = reader.GetString(2).Split(' '),
+                //            coverd = (uint)reader.GetInt32(3),
+                //            filter = (uint)reader.GetInt32(4),
+                //            face = (uint)reader.GetInt32(5),
+                //            id = (uint)reader.GetInt32(6),
+                //            loc = (uint)reader.GetInt32(7),
+                //            order = reader.GetInt32(8),
+                //            link = (uint)reader.GetInt32(9)
+                //        });
+                //    }
+                //}
+                //using (var command = new SqliteCommand($"SELECT * FROM {foundTN[2]};", connection))
+                //{
+                //    using var reader = command.ExecuteReader();
+                //    while (reader.Read())
+                //    {
+                //        if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
+                //            continue;
+                //        for (int i = 0; i < faces.Length; i++)
+                //        {
+                //            if (faces[i] == null)
+                //                faces[i] = new Face();
+                //            if (reader.GetInt32(2 + i) == 1)
+                //                faces[i].faceOptions.Add(reader.GetString(1));
+                //        }
+                //    }
+                //}
 
                 string[] files = Directory.GetFiles(args[0], "*.lsf", SearchOption.AllDirectories);
                 LsfManager lm = new();
