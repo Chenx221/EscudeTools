@@ -4,6 +4,34 @@ using System.Text;
 
 namespace EscudeTools
 {
+    public class Const
+    {
+        //Types
+        public const string INT8 = "System.SByte";
+        public const string UINT8 = "System.Byte";
+        public const string INT16 = "System.Int16";
+        public const string UINT16 = "System.UInt16";
+        public const string INT32 = "System.Int32";
+        public const string UINT32 = "System.UInt32";
+        public const string DOUBLE = "System.Double";
+        public const string FLOAT = "System.Single";
+        public const string INT64 = "System.Int64";
+        public const string UINT64 = "System.UInt64";
+        public const string STRING = "System.String";
+        public const string DELEGATE = "System.MulticastDelegate";
+        public const string CHAR = "System.Char";
+
+        //Attributes
+        public const string PSTRING = "PString";
+        public const string CSTRING = "CString";
+        public const string UCSTRING = "UCString";
+        public const string FSTRING = "FString";
+        public const string STRUCT = "StructField";
+        public const string IGNORE = "Ignore";
+        public const string FARRAY = "FArray";
+        public const string PARRAY = "PArray";
+        public const string RARRAY = "RArray";
+    }
     public class Utils
     {
         public static string ReadStringFromTextData(byte[] sheet_text, int offset)
@@ -163,6 +191,50 @@ namespace EscudeTools
             {
                 Buffer.BlockCopy(data, src, data, dst, count);
             }
+        }
+        public static dynamic Reverse(dynamic Data)
+        {
+            byte[] Arr = BitConverter.GetBytes(Data);
+            Array.Reverse(Arr, 0, Arr.Length);
+            string type = Data.GetType().FullName;
+            switch (type)
+            {
+                case Const.INT8:
+                case Const.UINT8:
+                    return Data;
+                case Const.INT16:
+                    return BitConverter.ToInt16(Arr, 0);
+                case Const.UINT16:
+                    return BitConverter.ToUInt16(Arr, 0);
+                case Const.INT32:
+                    return BitConverter.ToInt32(Arr, 0);
+                case Const.UINT32:
+                    return BitConverter.ToUInt32(Arr, 0);
+                case Const.INT64:
+                    return BitConverter.ToInt64(Arr, 0);
+                case Const.UINT64:
+                    return BitConverter.ToUInt64(Arr, 0);
+                case Const.DOUBLE:
+                    return BitConverter.ToDouble(Arr, 0);
+                case Const.FLOAT:
+                    return BitConverter.ToSingle(Arr, 0);
+                default:
+                    throw new Exception("Unk Data Type.");
+            }
+        }
+        public static void WriteTo(uint Value, byte[] Binary, uint At)
+        {
+            BitConverter.GetBytes(Value).CopyTo(Binary, At);
+        }
+
+        public static int searchLzwEntryList(List<LzwEntry> lle, string keyword)
+        {
+            foreach (LzwEntry le in lle)
+            {
+                if (le.Name == keyword)
+                    return lle.IndexOf(le);
+            }
+            return -1;
         }
     }
 }

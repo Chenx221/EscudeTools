@@ -1,5 +1,9 @@
-﻿//这里的提取代码参考(Ctrl+C, Ctrl+V)了Garbro中关于ESCUDE BIN封包的实现
+﻿//这里的部分Unpack代码参考了Garbro中关于ESCUDE BIN封包的实现
+//这里的部分Pack代码参考了marcussacana/EscudeEditor中的假压缩实现
+using EscudeEditor;
+using EscudeTools.EscudeEditor;
 using EscudeTools.Garbro;
+using System.Drawing;
 using System.Text;
 using System.Text.Json;
 
@@ -54,6 +58,10 @@ namespace EscudeTools
                 if (item == null)
                     return false;
                 pItem = item;
+
+                if (!Directory.Exists(Path.Combine(Path.GetDirectoryName(path), "output")))
+                    Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(path), "output"));
+                File.WriteAllText(Path.Combine(Path.GetDirectoryName(path), "output", Path.GetFileNameWithoutExtension(path) + ".json"), JsonSerializer.Serialize(pItem));
             }
             isLoaded = true;
             pFile = path;
@@ -121,7 +129,7 @@ namespace EscudeTools
                 return null;
             Decrypt(ref index);
             int index_offset = 0;
-            var dir = new List<Entry>((int)m_count);
+            List<Entry> dir = new((int)m_count);
             for (uint i = 0; i < m_count; ++i)
             {
                 int filename_offset = (int)Utils.ToUInt32(index, index_offset);
@@ -170,7 +178,7 @@ namespace EscudeTools
             if (!Directory.Exists(output))
                 Directory.CreateDirectory(output);
             var lzwManifest = new List<LzwEntry>();
-            //string jsonPath = Path.Combine(output, "lzwManifest.json");
+            string jsonPath = Path.Combine(output, "lzwManifest.json");
             using FileStream inputStream = new(pFile, FileMode.Open, FileAccess.Read);
             using BinaryReader br = new(inputStream);
             foreach (Entry entry in pItem)
@@ -207,11 +215,11 @@ namespace EscudeTools
 
             if (lzwManifest.Count > 0)
             {
-                //using (FileStream fs = File.Create(jsonPath))
-                //{
-                //    byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(lzwManifest));
-                //    fs.Write(jsonBytes, 0, jsonBytes.Length);
-                //}
+                using (FileStream fs = File.Create(jsonPath))
+                {
+                    byte[] jsonBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(lzwManifest));
+                    fs.Write(jsonBytes, 0, jsonBytes.Length);
+                }
                 LzwDecode(lzwManifest, output);
             };
 
@@ -316,10 +324,10 @@ namespace EscudeTools
         {
             if (useCustomKey)
                 LoadKey(customKeyProviderPath);
-            GeneratePItem(path);
-            //if(File.Exists(Path.Combine(path, "lzwManifest.json")))
-            //    return false; 
-            //Q:为什么不支持LZW打包 //A:因为我实在不想研究lzw算法，欢迎PR
+            ReadPItem(path);
+            List<LzwEntry> lzwManifest = [];
+            if (File.Exists(Path.Combine(path, "lzwManifest.json")))
+                lzwManifest = JsonSerializer.Deserialize<List<LzwEntry>>(File.ReadAllText(Path.Combine(path, "lzwManifest.json"))) ?? [];
             m_seed = isLoaded ? LoadedKey : 2210579460;
             string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(path) + ".bin");
             using (FileStream fs = new(outputPath, FileMode.Create))
@@ -343,8 +351,12 @@ namespace EscudeTools
                         Array.Copy(strbytes, result, lengthToCopy);
                         bw.Write(result);
                         bw.Write(storeOffset);
-                        bw.Write(pItem[i].Size);
-                        storeOffset += pItem[i].Size;
+                        uint size = pItem[i].Size;
+                        if (Utils.searchLzwEntryList(lzwManifest, pItem[i].Name) != -1)
+                            size = (uint)FakeCompress(File.ReadAllBytes(Path.Combine(path, pItem[i].Name))).Length;
+                        bw.Write(size);
+                        storeOffset += size;
+
                     }
                 }
                 else
@@ -361,10 +373,13 @@ namespace EscudeTools
                         indexOffset += 4;
                         BitConverter.GetBytes(storeOffset).CopyTo(index, indexOffset);
                         indexOffset += 4;
-                        BitConverter.GetBytes(pItem[i].Size).CopyTo(index, indexOffset);
+                        uint size = pItem[i].Size;
+                        if (Utils.searchLzwEntryList(lzwManifest, pItem[i].Name) != -1)
+                            size = (uint)FakeCompress(File.ReadAllBytes(Path.Combine(path, pItem[i].Name))).Length;
+                        BitConverter.GetBytes(size).CopyTo(index, indexOffset);
                         indexOffset += 4;
                         filenameOffset += (uint)pItem[i].Name.Length + 1;
-                        storeOffset += pItem[i].Size;
+                        storeOffset += size;
                     }
                     Decrypt(ref index);
                     bw.Write(index);
@@ -378,30 +393,73 @@ namespace EscudeTools
                 }
                 foreach (Entry entry in pItem)
                 {
-                            byte[] data = File.ReadAllBytes(Path.Combine(path, entry.Name));
-                            bw.Write(data);
-                        }
-                    }
+                    byte[] data;
+                    if (Utils.searchLzwEntryList(lzwManifest, entry.Name) != -1)
+                        data = FakeCompress(File.ReadAllBytes(Path.Combine(path, entry.Name)));
+                    else
+                        data = File.ReadAllBytes(Path.Combine(path, entry.Name));
+
+                    bw.Write(data);
+                }
+            }
             return true;
         }
 
-        private void GeneratePItem(string path)
+        private void ReadPItem(string path)
         {
             pItem.Clear();
-            var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories)
-                             .Where(file => !file.EndsWith("lzwManifest.json", StringComparison.OrdinalIgnoreCase))
-                             .ToArray();
-            foreach (var file in files)
-                {
-                    var relativePath = Path.GetRelativePath(path, file);
-                    var fileInfo = new FileInfo(file);
-                    pItem.Add(new Entry
-                    {
-                        Name = relativePath,
-                        Size = (uint)fileInfo.Length
-                    });
-                }
+            //反序列化path上级的json文件
+            string jsonPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(path) + ".json");
+            if (File.Exists(jsonPath))
+                pItem = JsonSerializer.Deserialize<List<Entry>>(File.ReadAllText(jsonPath)) ?? [];
+            else
+                throw new Exception("No json file found.");
+            for (int i = 0; i < pItem.Count; i++)
+            {
+                pItem[i].Size = (uint)new FileInfo(Path.Combine(path, pItem[i].Name)).Length;
+            }
+            //var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories)
+            //                 .Where(file => !file.EndsWith("lzwManifest.json", StringComparison.OrdinalIgnoreCase))
+            //                 .ToArray();
+            //foreach (var file in files)
+            //{
+            //    var relativePath = Path.GetRelativePath(path, file);
+            //    var fileInfo = new FileInfo(file);
+            //    pItem.Add(new Entry
+            //    {
+            //        Name = relativePath,
+            //        Size = (uint)fileInfo.Length
+            //    });
+            //}
             m_count = (uint)pItem.Count;
+        }
+
+        //不压其实也没事
+        public static byte[] FakeCompress(byte[] Data)
+        {
+            using (MemoryStream Stream = new())
+            {
+                byte[] Buffer = new byte[4];
+                ((uint)Utils.Reverse((uint)Data.Length)).WriteTo(Buffer, 0);
+                Stream.WriteCString("acp");
+                Stream.Write(Buffer, 0, Buffer.Length);
+
+                BitWriter Writer = new(Stream);
+                for (int i = 0; i < Data.Length; i++)
+                {
+                    if (i > 0 && (i % 0x4000) == 0)
+                    {
+                        Writer.PutBit(true);
+                        Writer.PutBits(2);
+                    }
+                    Writer.PutBit(false);
+                    Writer.PutBits(Data[i]);
+                }
+                Writer.PutBit(true);
+                Writer.PutBits(0);
+                Writer.Flush();
+                return Stream.ToArray();
+            }
         }
     }
 }
