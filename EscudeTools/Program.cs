@@ -320,7 +320,7 @@ namespace EscudeTools
         {
             if (Directory.Exists(v1) && File.Exists(v2))
             {
-                string graphicsDBPath = v1;
+                string graphicsDBPath = v2;
                 using SqliteConnection connection = new($"Data Source={graphicsDBPath};");
                 connection.Open();
                 List<string> tableNames = [];
