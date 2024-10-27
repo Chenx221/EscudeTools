@@ -54,6 +54,8 @@ namespace EscudeTools
                     }
                 }
             }
+            if (results.Count == 0)
+                return [];
             List<int> tmp = [];
             List<string> tmpS = [];
             for (int i = 0; i < ld.lli.Length; i++)

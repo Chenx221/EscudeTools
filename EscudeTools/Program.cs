@@ -1,4 +1,5 @@
 ﻿using Microsoft.Data.Sqlite;
+using System.Data;
 
 namespace EscudeTools
 {
@@ -31,6 +32,9 @@ namespace EscudeTools
                     case "-f":
                         RepackMdb(args[1]);
                         break;
+                    //case "-s1": 这是一个坏主意
+                    //    StProcessS1(args[1]);
+                    //    break;
                     default:
                         InvalidArgument();
                         break;
@@ -118,6 +122,7 @@ namespace EscudeTools
                 }
             else
                 InvalidArgument();
+            Console.WriteLine("Press any key to exit.");
             Console.ReadKey();
         }
         private static void StProcess(string v1, string v2)
@@ -204,7 +209,7 @@ namespace EscudeTools
                 }
                 List<StTable> stts = [];
                 Face[] faces = new Face[32];
-                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[1]};", connection))
+                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[0]};", connection))
                 {
                     using var reader = command.ExecuteReader();
                     while (reader.Read())
@@ -213,20 +218,21 @@ namespace EscudeTools
                             continue;
                         stts.Add(new StTable
                         {
-                            name = reader.GetString(0),
-                            file = reader.GetString(1),
-                            option = reader.GetString(2).Split(' '),
-                            coverd = (uint)reader.GetInt32(3),
-                            filter = (uint)reader.GetInt32(4),
-                            face = (uint)reader.GetInt32(5),
-                            id = (uint)reader.GetInt32(6),
-                            loc = (uint)reader.GetInt32(7),
-                            order = reader.GetInt32(8),
-                            link = (uint)reader.GetInt32(9)
+                            name = reader["ID_44"].ToString() ?? "",
+                            file = reader["ファイル_44"].ToString() ?? "",
+                            option = (reader["オプション_44"].ToString() ?? "").Split(' '),
+                            //coverd = (uint)reader.GetInt32(3),
+                            //filter = (uint)reader.GetInt32(4),
+                            face = (uint)reader.GetInt32("表情_14"),
+                            //id = (uint)reader.GetInt32(6),
+                            //loc = (uint)reader.GetInt32(7),
+                            order = reader.GetInt32("CG鑑賞_14"),
+                            //link = (uint)reader.GetInt32(9)
                         });
                     }
                 }
-                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[2]};", connection))
+                List<string> fa = [];
+                using (var command = new SqliteCommand($"SELECT * FROM {foundTN[1]};", connection))
                 {
                     using var reader = command.ExecuteReader();
                     while (reader.Read())
@@ -242,7 +248,6 @@ namespace EscudeTools
                         }
                     }
                 }
-
                 string[] files = Directory.GetFiles(v1, "*.lsf", SearchOption.AllDirectories);
                 LsfManager lm = new();
                 foreach (string file in files)
@@ -258,6 +263,7 @@ namespace EscudeTools
                 string outputDir = Path.Combine(Path.GetDirectoryName(v1), "Output");
                 if (!Directory.Exists(outputDir))
                     Directory.CreateDirectory(outputDir);
+
                 var parallelOptions = new ParallelOptions
                 {
                     MaxDegreeOfParallelism = 6 // 设置最大并行线程数
@@ -284,15 +290,21 @@ namespace EscudeTools
                             pendingListFn.Add(lsfData.lli[i].nameStr);
                         }
                     }
-                    pendingList = TableManagercs.OrderLayer(pendingList, pendingListFn);
+                    //pendingList = TableManagercs.OrderLayer(pendingList, pendingListFn);
                     int n = 0;
                     foreach (string o in faces[(int)stt.face].faceOptions)
                     {
                         List<int> pendingListCopy = new(pendingList);
+                        List<string> pendingListFnCopy = new(pendingListFn);
                         List<int> t = TableManagercs.ParseOptions(lsfData, o);
                         if (t.Count == 0)
                             continue;
+                        foreach (int i in t)
+                        {
+                            pendingListFnCopy.Add(lsfData.lli[i].nameStr);
+                        }
                         pendingListCopy.AddRange(t);
+                        pendingListCopy = TableManagercs.OrderLayer(pendingListCopy, pendingListFnCopy);
                         if (!ImageManager.Process(lsfData, [.. pendingListCopy], targetFilename + $"_{n++}.png"))
                             throw new Exception("Process Fail");
                         else
@@ -368,16 +380,17 @@ namespace EscudeTools
                             continue;
                         evts.Add(new EvTable
                         {
-                            name = reader.GetString(0),
-                            file = reader.GetString(1),
-                            option = reader.GetString(2).Split(' '),
-                            coverd = (uint)reader.GetInt32(3),
-                            filter = (uint)reader.GetInt32(4),
-                            color = (uint)reader.GetInt32(5),
-                            id = (uint)reader.GetInt32(6),
-                            loc = (uint)reader.GetInt32(7),
-                            order = reader.GetInt32(8),
-                            link = (uint)reader.GetInt32(9)
+                            name = reader["ID_44"].ToString() ?? "",
+                            file = reader["ファイル_44"].ToString() ?? "",
+                            option = (reader["オプション_44"].ToString() ?? "").Split(' '),
+                            //coverd = (uint)reader.GetInt32(3),
+                            //filter = (uint)reader.GetInt32(4),
+                            //color = (uint)reader.GetInt32(5),
+                            //id = (uint)reader.GetInt32(6),
+                            //loc = (uint)reader.GetInt32(7),
+                            order = reader.GetInt32("CG鑑賞_14"),
+                            //link = (uint)reader.GetInt32(9)
+                            //向后兼容，少读点
                         });
                     }
                 }
@@ -655,6 +668,14 @@ namespace EscudeTools
             Console.WriteLine("-f: repack SQLite to db_*.bin");
             Console.WriteLine("Restores all SQLite databases in the path to db_*.bin files.");
             Console.WriteLine();
+            Console.WriteLine("EscudeTools.exe -c <EvPath> <db_graphics.db Path>");
+            Console.WriteLine("-c: compose EV image");
+            Console.WriteLine("Provide a set of EV images of the same size and the db_graphics.db to compose the images.");
+            Console.WriteLine();
+            Console.WriteLine("EscudeTools.exe -s <StPath> <db_graphics.db Path>");
+            Console.WriteLine("-s: compose ST image");
+            Console.WriteLine("Provide a set of ST images of the same size and the db_graphics.db to compose the images.");
+            Console.WriteLine();
             Console.WriteLine("EscudeTools.exe -h");
             Console.WriteLine("-h: print help info");
         }
@@ -662,3 +683,4 @@ namespace EscudeTools
     }
 
 }
+

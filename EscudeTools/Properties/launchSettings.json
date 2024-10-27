@@ -1,8 +1,7 @@
 {
   "profiles": {
     "EscudeTools": {
-      "commandName": "Project",
-      "commandLineArgs": "G:\\x221.local\\archived\\femme_fatale\\output\r\n\"G:\\x221.local\\lab3\\Haison\\output\\ev\\db_graphics.db\""
+      "commandName": "Project"
     }
   }
 }

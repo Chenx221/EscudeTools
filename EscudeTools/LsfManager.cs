@@ -42,7 +42,7 @@ namespace EscudeTools
 
         public string pathStr;
         public string lsfName;
-    }
+        }
     public class LsfFileHeader
     {
         //public uint signature; // Header signature (LSF) 0x46534C
