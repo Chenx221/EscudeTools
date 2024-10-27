@@ -114,9 +114,8 @@ namespace EscudeTools
     {
         static readonly byte[] lsfFileSignature = [0x4C, 0x53, 0x46, 0x00];
         static readonly byte[] lsfLayerSkipSignature = [0x00, 0x75, 0x6C, 0x00]; //flowchat部分的lsf块
-        private static string WorkPath = string.Empty;
         private LsfData lsfData = new();
-        private Dictionary<string, LsfData> lsfDataLookup = new();
+        private Dictionary<string, LsfData> lsfDataLookup = [];
 
         private bool preFetchInfo;
 
@@ -158,7 +157,7 @@ namespace EscudeTools
             return lsfData; // 如果未找到，则返回 null
         }
 
-        private LsfFileHeader LoadLsfHeader(string path)
+        private static LsfFileHeader LoadLsfHeader(string path)
         {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
             if (fs.Length < 0x1C)

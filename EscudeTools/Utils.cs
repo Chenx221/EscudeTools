@@ -105,7 +105,7 @@ namespace EscudeTools
             stream.CopyTo(fileStream);
         }
 
-        public static string GetSQLiteColumnType(ushort type, uint size)
+        public static string GetSQLiteColumnType(ushort type)
         {
             if (type == 1)
                 return "INTEGER";
@@ -197,37 +197,26 @@ namespace EscudeTools
             byte[] Arr = BitConverter.GetBytes(Data);
             Array.Reverse(Arr, 0, Arr.Length);
             string type = Data.GetType().FullName;
-            switch (type)
+            return type switch
             {
-                case Const.INT8:
-                case Const.UINT8:
-                    return Data;
-                case Const.INT16:
-                    return BitConverter.ToInt16(Arr, 0);
-                case Const.UINT16:
-                    return BitConverter.ToUInt16(Arr, 0);
-                case Const.INT32:
-                    return BitConverter.ToInt32(Arr, 0);
-                case Const.UINT32:
-                    return BitConverter.ToUInt32(Arr, 0);
-                case Const.INT64:
-                    return BitConverter.ToInt64(Arr, 0);
-                case Const.UINT64:
-                    return BitConverter.ToUInt64(Arr, 0);
-                case Const.DOUBLE:
-                    return BitConverter.ToDouble(Arr, 0);
-                case Const.FLOAT:
-                    return BitConverter.ToSingle(Arr, 0);
-                default:
-                    throw new Exception("Unk Data Type.");
-            }
+                Const.INT8 or Const.UINT8 => Data,
+                Const.INT16 => BitConverter.ToInt16(Arr, 0),
+                Const.UINT16 => BitConverter.ToUInt16(Arr, 0),
+                Const.INT32 => BitConverter.ToInt32(Arr, 0),
+                Const.UINT32 => BitConverter.ToUInt32(Arr, 0),
+                Const.INT64 => BitConverter.ToInt64(Arr, 0),
+                Const.UINT64 => BitConverter.ToUInt64(Arr, 0),
+                Const.DOUBLE => BitConverter.ToDouble(Arr, 0),
+                Const.FLOAT => BitConverter.ToSingle(Arr, 0),
+                _ => throw new Exception("Unk Data Type."),
+            };
         }
         public static void WriteTo(uint Value, byte[] Binary, uint At)
         {
             BitConverter.GetBytes(Value).CopyTo(Binary, At);
         }
 
-        public static int searchLzwEntryList(List<LzwEntry> lle, string keyword)
+        public static int SearchLzwEntryList(List<LzwEntry> lle, string keyword)
         {
             foreach (LzwEntry le in lle)
             {

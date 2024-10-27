@@ -226,7 +226,7 @@ namespace EscudeTools
             return true;
         }
 
-        private void LzwDecode(List<LzwEntry> lzwManifest, string output)
+        private static void LzwDecode(List<LzwEntry> lzwManifest, string output)
         {
             foreach (var i in lzwManifest)
             {
@@ -244,18 +244,12 @@ namespace EscudeTools
             }
         }
 
-        internal sealed class LzwDecoder : IDisposable
+        internal sealed class LzwDecoder(Stream input, int unpacked_size) : IDisposable
         {
-            private MsbBitStream m_input;
-            private byte[] m_output;
+            private MsbBitStream m_input = new(input, true);
+            private byte[] m_output = new byte[unpacked_size];
 
             public byte[] Output { get { return m_output; } }
-
-            public LzwDecoder(Stream input, int unpacked_size)
-            {
-                m_input = new MsbBitStream(input, true);
-                m_output = new byte[unpacked_size];
-            }
 
             public void Unpack()
             {
@@ -320,9 +314,9 @@ namespace EscudeTools
             #endregion
         }
 
-        public bool Repack(string path, int version, bool useCustomKey = false, string customKeyProviderPath = "") //目前支持v2v1
+        public bool Repack(string path, int version, string customKeyProviderPath = "") //目前支持v2v1
         {
-            if (useCustomKey)
+            if (customKeyProviderPath!="")
                 LoadKey(customKeyProviderPath);
             ReadPItem(path);
             List<LzwEntry> lzwManifest = [];
@@ -330,77 +324,75 @@ namespace EscudeTools
                 lzwManifest = JsonSerializer.Deserialize<List<LzwEntry>>(File.ReadAllText(Path.Combine(path, "lzwManifest.json"))) ?? [];
             m_seed = isLoaded ? LoadedKey : 2210579460;
             string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileName(path) + ".bin");
-            using (FileStream fs = new(outputPath, FileMode.Create))
-            using (BinaryWriter bw = new(fs))
+            using FileStream fs = new(outputPath, FileMode.Create);
+            using BinaryWriter bw = new(fs);
+            bw.Write(fileSignature);
+            bw.Write(supportPackVersion[version - 1]);
+            bw.Write(m_seed);
+            m_count = (uint)pItem.Count;
+            bw.Write(m_count ^ NextKey());
+            EncodingProvider provider = CodePagesEncodingProvider.Instance;
+            Encoding? shiftJis = provider.GetEncoding("shift-jis");
+            if (version == 1) //未经测试
             {
-                bw.Write(fileSignature);
-                bw.Write(supportPackVersion[version - 1]);
-                bw.Write(m_seed);
-                m_count = (uint)pItem.Count;
-                bw.Write(m_count ^ NextKey());
-                EncodingProvider provider = CodePagesEncodingProvider.Instance;
-                Encoding? shiftJis = provider.GetEncoding("shift-jis");
-                if (version == 1) //未经测试
+                long storeOffset = 0x10 + m_count * 0x88;
+                for (int i = 0; i < m_count; i++)
                 {
-                    long storeOffset = 0x10 + m_count * 0x88;
-                    for (int i = 0; i < m_count; i++)
-                    {
-                        byte[] strbytes = shiftJis.GetBytes(pItem[i].Name);
-                        byte[] result = new byte[80];
-                        int lengthToCopy = Math.Min(strbytes.Length, 78);
-                        Array.Copy(strbytes, result, lengthToCopy);
-                        bw.Write(result);
-                        bw.Write(storeOffset);
-                        uint size = pItem[i].Size;
-                        if (Utils.searchLzwEntryList(lzwManifest, pItem[i].Name) != -1)
-                            size = (uint)FakeCompress(File.ReadAllBytes(Path.Combine(path, pItem[i].Name))).Length;
-                        bw.Write(size);
-                        storeOffset += size;
+                    byte[] strbytes = shiftJis.GetBytes(pItem[i].Name);
+                    byte[] result = new byte[80];
+                    int lengthToCopy = Math.Min(strbytes.Length, 78);
+                    Array.Copy(strbytes, result, lengthToCopy);
+                    bw.Write(result);
+                    bw.Write(storeOffset);
+                    uint size = pItem[i].Size;
+                    if (Utils.SearchLzwEntryList(lzwManifest, pItem[i].Name) != -1)
+                        size = (uint)FakeCompress(File.ReadAllBytes(Path.Combine(path, pItem[i].Name))).Length;
+                    bw.Write(size);
+                    storeOffset += size;
 
-                    }
                 }
-                else
+            }
+            else
+            {
+                uint namesSize = (uint)pItem.Sum(e => e.Name.Length + 1);
+                bw.Write(namesSize ^ NextKey());
+                uint filenameOffset = 0;
+                long storeOffset = 0x14 + m_count * 12 + namesSize;
+                byte[] index = new byte[m_count * 12];
+                int indexOffset = 0;
+                for (int i = 0; i < m_count; i++)
                 {
-                    uint namesSize = (uint)pItem.Sum(e => e.Name.Length + 1);
-                    bw.Write(namesSize ^ NextKey());
-                    uint filenameOffset = 0;
-                    long storeOffset = 0x14 + m_count * 12 + namesSize;
-                    byte[] index = new byte[m_count * 12];
-                    int indexOffset = 0;
-                    for (int i = 0; i < m_count; i++)
-                    {
-                        BitConverter.GetBytes(filenameOffset).CopyTo(index, indexOffset);
-                        indexOffset += 4;
-                        BitConverter.GetBytes(storeOffset).CopyTo(index, indexOffset);
-                        indexOffset += 4;
-                        uint size = pItem[i].Size;
-                        if (Utils.searchLzwEntryList(lzwManifest, pItem[i].Name) != -1)
-                            size = (uint)FakeCompress(File.ReadAllBytes(Path.Combine(path, pItem[i].Name))).Length;
-                        BitConverter.GetBytes(size).CopyTo(index, indexOffset);
-                        indexOffset += 4;
-                        filenameOffset += (uint)pItem[i].Name.Length + 1;
-                        storeOffset += size;
-                    }
-                    Decrypt(ref index);
-                    bw.Write(index);
-
-                    foreach (Entry entry in pItem)
-                    {
-                        byte[] nameBytes = shiftJis.GetBytes(entry.Name);
-                        bw.Write(nameBytes);
-                        bw.Write((byte)0);
-                    }
+                    BitConverter.GetBytes(filenameOffset).CopyTo(index, indexOffset);
+                    indexOffset += 4;
+                    BitConverter.GetBytes(storeOffset).CopyTo(index, indexOffset);
+                    indexOffset += 4;
+                    uint size = pItem[i].Size;
+                    if (Utils.SearchLzwEntryList(lzwManifest, pItem[i].Name) != -1)
+                        size = (uint)FakeCompress(File.ReadAllBytes(Path.Combine(path, pItem[i].Name))).Length;
+                    BitConverter.GetBytes(size).CopyTo(index, indexOffset);
+                    indexOffset += 4;
+                    filenameOffset += (uint)pItem[i].Name.Length + 1;
+                    storeOffset += size;
                 }
+                Decrypt(ref index);
+                bw.Write(index);
+
                 foreach (Entry entry in pItem)
                 {
-                    byte[] data;
-                    if (Utils.searchLzwEntryList(lzwManifest, entry.Name) != -1)
-                        data = FakeCompress(File.ReadAllBytes(Path.Combine(path, entry.Name)));
-                    else
-                        data = File.ReadAllBytes(Path.Combine(path, entry.Name));
-
-                    bw.Write(data);
+                    byte[] nameBytes = shiftJis.GetBytes(entry.Name);
+                    bw.Write(nameBytes);
+                    bw.Write((byte)0);
                 }
+            }
+            foreach (Entry entry in pItem)
+            {
+                byte[] data;
+                if (Utils.SearchLzwEntryList(lzwManifest, entry.Name) != -1)
+                    data = FakeCompress(File.ReadAllBytes(Path.Combine(path, entry.Name)));
+                else
+                    data = File.ReadAllBytes(Path.Combine(path, entry.Name));
+
+                bw.Write(data);
             }
             return true;
         }
@@ -437,29 +429,27 @@ namespace EscudeTools
         //不压其实也没事
         public static byte[] FakeCompress(byte[] Data)
         {
-            using (MemoryStream Stream = new())
-            {
-                byte[] Buffer = new byte[4];
-                ((uint)Utils.Reverse((uint)Data.Length)).WriteTo(Buffer, 0);
-                Stream.WriteCString("acp");
-                Stream.Write(Buffer, 0, Buffer.Length);
+            using MemoryStream Stream = new();
+            byte[] Buffer = new byte[4];
+            ((uint)Utils.Reverse((uint)Data.Length)).WriteTo(Buffer, 0);
+            Stream.WriteCString("acp");
+            Stream.Write(Buffer, 0, Buffer.Length);
 
-                BitWriter Writer = new(Stream);
-                for (int i = 0; i < Data.Length; i++)
+            BitWriter Writer = new(Stream);
+            for (int i = 0; i < Data.Length; i++)
+            {
+                if (i > 0 && (i % 0x4000) == 0)
                 {
-                    if (i > 0 && (i % 0x4000) == 0)
-                    {
-                        Writer.PutBit(true);
-                        Writer.PutBits(2);
-                    }
-                    Writer.PutBit(false);
-                    Writer.PutBits(Data[i]);
+                    Writer.PutBit(true);
+                    Writer.PutBits(2);
                 }
-                Writer.PutBit(true);
-                Writer.PutBits(0);
-                Writer.Flush();
-                return Stream.ToArray();
+                Writer.PutBit(false);
+                Writer.PutBits(Data[i]);
             }
+            Writer.PutBit(true);
+            Writer.PutBits(0);
+            Writer.Flush();
+            return Stream.ToArray();
         }
     }
 }

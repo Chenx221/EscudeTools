@@ -170,7 +170,7 @@ namespace EscudeTools
                     // Add columns to the create table query
                     foreach (var column in sheet.col)
                     {
-                        createTableQuery.Append($"{column.name} {Utils.GetSQLiteColumnType(column.type, column.size)}, ");
+                        createTableQuery.Append($"{column.name} {Utils.GetSQLiteColumnType(column.type)}, ");
                     }
 
                     createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
