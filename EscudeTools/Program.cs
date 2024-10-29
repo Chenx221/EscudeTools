@@ -212,6 +212,7 @@ namespace EscudeTools
                 using (var command = new SqliteCommand($"SELECT * FROM {foundTN[0]};", connection))
                 {
                     using var reader = command.ExecuteReader();
+                    int fieldCount = reader.FieldCount;
                     while (reader.Read())
                     {
                         if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
@@ -223,7 +224,7 @@ namespace EscudeTools
                             option = (reader["オプション_44"].ToString() ?? "").Split(' '),
                             //coverd = (uint)reader.GetInt32(3),
                             //filter = (uint)reader.GetInt32(4),
-                            face = (uint)reader.GetInt32("表情_14"),
+                            face = (uint)(fieldCount == 9 ? 0 : reader.GetInt32("表情_14")),
                             //id = (uint)reader.GetInt32(6),
                             //loc = (uint)reader.GetInt32(7),
                             order = reader.GetInt32("CG鑑賞_14"),
@@ -232,10 +233,14 @@ namespace EscudeTools
                     }
                 }
                 List<string> fa = [];
+                bool legacyMode = false;
                 using (var command = new SqliteCommand($"SELECT * FROM {foundTN[1]};", connection))
                 {
                     using var reader = command.ExecuteReader();
-                    while (reader.Read())
+                    int fieldCount = reader.FieldCount;
+                    if (fieldCount <= 2)
+                        legacyMode = true;
+                    while (reader.Read() && !legacyMode)
                     {
                         if (reader.IsDBNull(0) || string.IsNullOrEmpty(reader.GetString(0)))
                             continue;
@@ -263,55 +268,10 @@ namespace EscudeTools
                 string outputDir = Path.Combine(Path.GetDirectoryName(v1), "Output");
                 if (!Directory.Exists(outputDir))
                     Directory.CreateDirectory(outputDir);
-
-                var parallelOptions = new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = 6 // 设置最大并行线程数
-                };
-
-                Parallel.ForEach(stts, parallelOptions, stt =>
-                //foreach (StTable stt in stts)
-                {
-                    if (stt.order == 0) //仅提取鉴赏中有的ST
-                        return;
-                    //continue;
-                    string targetFilename = Path.Combine(outputDir, stt.name); //最后保存可用的文件名
-                    LsfData? lsfData = lm.FindLsfDataByName(stt.file) ?? throw new Exception($"错误，未找到与{stt.file}对应的lsf数据");
-                    List<int> pendingList = [];
-                    List<string> pendingListFn = [];
-                    foreach (string o in stt.option)
-                    {
-                        List<int> t = TableManagercs.ParseOptions(lsfData, o);
-                        if (t.Count == 0)
-                            continue;
-                        pendingList.AddRange(t);
-                        foreach (int i in t)
-                        {
-                            pendingListFn.Add(lsfData.lli[i].nameStr);
-                        }
-                    }
-                    //pendingList = TableManagercs.OrderLayer(pendingList, pendingListFn);
-                    int n = 0;
-                    foreach (string o in faces[(int)stt.face].faceOptions)
-                    {
-                        List<int> pendingListCopy = new(pendingList);
-                        List<string> pendingListFnCopy = new(pendingListFn);
-                        List<int> t = TableManagercs.ParseOptions(lsfData, o);
-                        if (t.Count == 0)
-                            continue;
-                        foreach (int i in t)
-                        {
-                            pendingListFnCopy.Add(lsfData.lli[i].nameStr);
-                        }
-                        pendingListCopy.AddRange(t);
-                        pendingListCopy = TableManagercs.OrderLayer(pendingListCopy, pendingListFnCopy);
-                        if (!ImageManager.Process(lsfData, [.. pendingListCopy], targetFilename + $"_{n++}.png"))
-                            throw new Exception("Process Fail");
-                        else
-                            Console.WriteLine($"Export {stt.name}_{n - 1} Success");
-                    }
-                });
-                //}
+                if (legacyMode)
+                    ImageManager.ImgPreProcessOld(stts, lm, outputDir);
+                else
+                    ImageManager.ImgPreProcessNew(stts, faces, lm, outputDir);
 
             }
         }
@@ -647,7 +607,7 @@ namespace EscudeTools
             Console.WriteLine("Ignore the 001 files; the program will read them if needed.");
             Console.WriteLine("Must specify the type of script bin file to unpack.");
             Console.WriteLine("Accepts the following types: 0, 1, 2.");
-            Console.WriteLine("Type 0: Full; this creates script.db containing all .bin and .001 information.");
+            Console.WriteLine("Type 0(unstable): Full; this creates script.db containing all .bin and .001 information.");
             Console.WriteLine("Type 2: Exports only the text from bin; this creates script_text.db and many .dat files (non-text data).");
             Console.WriteLine("Type 1: Exports only the text from 001; this creates script_sm.db containing all .001 information.");
             Console.WriteLine();

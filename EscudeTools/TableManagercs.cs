@@ -89,9 +89,9 @@ namespace EscudeTools
             foreach (string item in layer_fn)
             {
                 string[] parts = item.Split("_");
-                if (parts.Length == 3)
+                if (parts.Length >= 3)
                 {
-                    if (int.TryParse(parts[2], out int number))
+                    if (int.TryParse(parts[^1], out int number))
                     {
                         order.Add(number);
                     }

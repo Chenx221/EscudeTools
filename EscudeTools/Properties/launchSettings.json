@@ -1,7 +1,8 @@
 {
   "profiles": {
     "EscudeTools": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "-s\r\n\"G:\\x221.local\\[231027][1231724][エスクード] 戦巫＜センナギ＞ ―穢れた契りと神ころも― DL版 (files)\\戦巫〈センナギ〉―穢れた契りと神ころも―\\output\\st\\0\"\r\n\"G:\\x221.local\\[231027][1231724][エスクード] 戦巫＜センナギ＞ ―穢れた契りと神ころも― DL版 (files)\\戦巫〈センナギ〉―穢れた契りと神ころも―\\output\\st\\db_graphics.db\""
     }
   }
 }
