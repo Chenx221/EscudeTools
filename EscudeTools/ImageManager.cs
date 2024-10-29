@@ -18,7 +18,12 @@ namespace EscudeTools
                     return;
                 //continue;
                 string targetFilename = Path.Combine(outputDir, stt.name); //最后保存可用的文件名
-                LsfData? lsfData = lm.FindLsfDataByName(stt.file) ?? throw new Exception($"错误，未找到与{stt.file}对应的lsf数据");
+                LsfData? lsfData = lm.FindLsfDataByName(stt.file);
+                if (lsfData == null)
+                {
+                    Console.WriteLine($"警告,未找到与{stt.file}对应的lsf数据");
+                    return;
+                }
                 List<int> pendingList = [];
                 List<string> pendingListFn = [];
                 foreach (string o in stt.option)
@@ -69,7 +74,12 @@ namespace EscudeTools
                 if (stt.order == 0) //仅提取鉴赏中有的ST
                     return;
                 string targetFilename = Path.Combine(outputDir, stt.name);
-                LsfData? lsfData = lm.FindLsfDataByName(stt.file) ?? throw new Exception($"错误，未找到与{stt.file}对应的lsf数据");
+                LsfData? lsfData = lm.FindLsfDataByName(stt.file);
+                if (lsfData == null)
+                {
+                    Console.WriteLine($"警告,未找到与{stt.file}对应的lsf数据");
+                    return;
+                }
                 List<int> faceAvailList = [];
                 List<string> faceAvailNameList = [];
                 for (int i = 0; i < lsfData.lli.Length; i++)

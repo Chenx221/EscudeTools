@@ -3,23 +3,6 @@ namespace EscudeTools
 {
     public static class Define
     {
-        public static readonly string[] ProcNames =
-        [
-                "proc_end", "proc_call", "proc_argv", "proc_argc", "proc_typeof", "proc_int", "proc_float", "proc_abs",
-                "proc_rand", "proc_min", "proc_max", "proc_rgb", "proc_refer", "proc_credit", "proc_log_new", "proc_log_out",
-                "proc_title", "proc_auto_save", "proc_is_pass", "proc_event", "proc_scene", "proc_open_name", "proc_notice",
-                "proc_log_img", "proc_msg_opt", "proc_cf", "proc_cv", "proc_vt", "proc_frame", "proc_text", "proc_vals",
-                "proc_clear", "proc_gap", "proc_menu_opt", "proc_menu", "proc_wait", "proc_lsf_init", "proc_lsf_set",
-                "proc_lsf_get", "proc_lsf_break", "proc_dt", "proc_ps", "proc_cg", "proc_cg_org", "proc_cg_set", "proc_cg_get",
-                "proc_cg_em", "proc_cg_clr", "proc_cg_disp", "proc_path", "proc_tween", "proc_trans", "proc_mot_set",
-                "proc_mot_get", "proc_quake", "proc_flash", "proc_flt", "proc_ptcl", "proc_sync", "proc_auto_kill", "proc_movie",
-                "proc_bgm_play", "proc_bgm_stop", "proc_bgm_vol", "proc_bgm_fx", "proc_amb_play", "proc_amb_stop", "proc_amb_vol",
-                "proc_amb_fx", "proc_se_play", "proc_se_stop", "proc_se_wait", "proc_se_vol", "proc_se_fx", "proc_voc_play",
-                "proc_voc_stop", "proc_voc_wait", "proc_voc_vol", "proc_voc_fx", "proc_bgv_play", "proc_bgv_stop", "proc_bgv_vol",
-                "proc_bgv_fx", "proc_set_param", "proc_get_param", "proc_jump", "proc_date", "proc_flow", "proc_diary",
-                "proc_unlock", "proc_section", "proc_omake"
-            ];
-        // 说句实话，我觉得这些定义可能会发生变化
         public const byte INST_POP = 1;
         public const byte INST_POP_N = 2;
         public const byte INST_POP_RET = 3;
