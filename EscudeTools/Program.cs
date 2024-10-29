@@ -508,7 +508,7 @@ namespace EscudeTools
             //导出db_*.bin
             if (Directory.Exists(v))
             {
-                string[] files = Directory.GetFiles(v, "db_*.bin");
+                string[] files = Directory.GetFiles(v, "*.bin");
                 DatabaseManager dm = new();
                 foreach (string file in files)
                 {
