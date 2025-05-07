@@ -219,17 +219,36 @@ namespace EscudeTools
                 case INST_PAGE:
                     return $"Message page break";
                 case INST_OPTION:
-                    return $"Set menu option";
+                    return (sm == null) ? "意外的指令，此表无Mess" : $"option({sm.DataString[BitConverter.ToUInt32(c.Parameter)]})";
+
+                    //messIndex++;
+                    //return (sm == null) ? "意外的指令，此表无Mess" : $"option({sm.DataString[messIndex - 1]})";
                 case INST_LINE:
                     return $"File line number";
                 case INST_PROC:
                     uint index = BitConverter.ToUInt32(c.Parameter);
+                    string funcName = index switch
+                    {
+                        30 => "(Voice)",
+                        37 => "(Choices)",
+                        _ => "",
+                    };
+                    string note="";
+                    if (index == 30)
+                    {
+                        Command param2 = sf.GetCommandFromEnd(2);
+                        if (param2.Instruction == INST_PUSH_INT)
+                            note = $"({BitConverter.ToUInt16(param2.Parameter)})";
+                    }
+
                     //if(index>= ProcNames.Length)
                     //    return $"Execute unknown built-in function";
-                    return $"Execute built-in function {index}";
+                    return $"Execute built-in function {index}{funcName}{note}";
                 case INST_TEXT:
-                    messIndex++;
-                    return (sm == null) ? "意外的指令，此表无Mess" : sm.DataString[messIndex - 1];
+                    return (sm == null) ? "意外的指令，此表无Mess" : sm.DataString[BitConverter.ToUInt32(c.Parameter)];
+
+                    //messIndex++;
+                    //return (sm == null) ? "意外的指令，此表无Mess" : sm.DataString[messIndex - 1];
                 default:
                     return "UNKNOWN";
             }

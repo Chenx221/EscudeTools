@@ -26,6 +26,15 @@ namespace EscudeTools
         public uint MessCount { get; set; }     // MESS数 (消息数量)
         public string[] TextString { get; set; } // 给人看的Text内容
         public List<Command> Commands { get; set; } // 给人看的Code内容
+
+        public Command GetCommandFromEnd(int indexFromEnd)
+        {
+            if (Commands == null || indexFromEnd < 0 || indexFromEnd >= Commands.Count)
+                return null;
+
+            return Commands[^indexFromEnd];
+        }
+
     }
 
     public class Command

@@ -2,7 +2,7 @@
   "profiles": {
     "EscudeTools": {
       "commandName": "Project",
-      "commandLineArgs": "-v\r\n\"G:\\x221.local\\[231027][1231724][エスクード] 戦巫＜センナギ＞ ―穢れた契りと神ころも― DL版 (files)\\戦巫〈センナギ〉―穢れた契りと神ころも―\\1\\script\"\r\n-t\r\n0"
+      "commandLineArgs": "-v\r\n\"G:\\x221.local\\廃村少女 ～妖し惑ひの籠の郷～\\output\\script\"\r\n-t\r\n0"
     }
   }
 }
