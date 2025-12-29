@@ -165,12 +165,12 @@ namespace EscudeTools
                 using (SqliteCommand createTableCommand = connection.CreateCommand())
                 {
                     StringBuilder createTableQuery = new();
-                    createTableQuery.Append($"CREATE TABLE IF NOT EXISTS {sheet.name} (");
+                    createTableQuery.Append($"CREATE TABLE IF NOT EXISTS [{sheet.name}] (");
 
                     // Add columns to the create table query
                     foreach (var column in sheet.col)
                     {
-                        createTableQuery.Append($"{column.name} {Utils.GetSQLiteColumnType(column.type)}, ");
+                        createTableQuery.Append($"[{column.name}] {Utils.GetSQLiteColumnType(column.type)}, ");
                     }
 
                     createTableQuery.Remove(createTableQuery.Length - 2, 2); // Remove the last comma and space
@@ -183,12 +183,12 @@ namespace EscudeTools
 
                 using SqliteCommand insertDataCommand = connection.CreateCommand();
                 StringBuilder insertDataQuery = new();
-                insertDataQuery.Append($"INSERT INTO {sheet.name} (");
+                insertDataQuery.Append($"INSERT INTO [{sheet.name}] (");
 
                 // Add column names to the insert data query
                 foreach (var column in sheet.col)
                 {
-                    insertDataQuery.Append($"{column.name}, ");
+                    insertDataQuery.Append($"[{column.name}], ");
                 }
 
                 insertDataQuery.Remove(insertDataQuery.Length - 2, 2); // Remove the last comma and space
@@ -211,8 +211,8 @@ namespace EscudeTools
                     var record = (Record)sheet.records.values[i];
                     for (int j = 0; j < sheet.cols; j++)
                     {
-                        var parameter = new SqliteParameter($"@param{j}", record.values[j]);
-                        insertDataCommand.Parameters.Add(parameter);
+                        var val = record.values[j] ?? DBNull.Value;
+                        insertDataCommand.Parameters.AddWithValue($"@param{j}", val);
                     }
 
                     insertDataCommand.ExecuteNonQuery();
