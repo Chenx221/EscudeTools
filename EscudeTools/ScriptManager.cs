@@ -119,9 +119,9 @@ namespace EscudeTools
                     i += 4 * paramNum;
                 }
                 if (sm != null)
-                    c.Helper = Define.SetCommandStr(c, sf, sm, ref messIndex);
+                    c.Helper = Define.SetCommandStr(c, sf, sm);
                 else
-                    c.Helper = Define.SetCommandStr(c, sf, null, ref messIndex);
+                    c.Helper = Define.SetCommandStr(c, sf, null);
                 sf.Commands.Add(c);
             }
             return true;

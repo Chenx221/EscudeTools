@@ -2,7 +2,7 @@
   "profiles": {
     "EscudeTools": {
       "commandName": "Project",
-      "commandLineArgs": "-v\r\n\"G:\\x221.local\\廃村少女 ～妖し惑ひの籠の郷～\\output\\script\"\r\n-t\r\n0"
+      "commandLineArgs": "-v\r\n\"G:\\x221.local\\[220428][1161282][エスクード] 姫と婬欲のテスタメント パッケージ版 (iso+mds)\\Testament\\New folder\\script\"\r\n-t\r\n0"
     }
   }
 }
